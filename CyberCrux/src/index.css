@@ -1,0 +1,91 @@
+@import "tailwindcss";
+
+:root {
+  --main-bg-dark: #0b2a5b;
+  --main-bg-light: #f7faff;
+  --main-text-dark: #e6eaf3;
+  --main-text-light: #1a2233;
+  --card-bg-dark: rgba(255,255,255,0.07);
+  --card-bg-light: #fff;
+  --card-border-dark: rgba(255,255,255,0.12);
+  --card-border-light: #e3e8f0;
+}
+.theme-dark {
+  background: var(--main-bg-dark);
+  color: var(--main-text-dark);
+}
+.theme-light {
+  background: var(--main-bg-light);
+  color: var(--main-text-light);
+}
+.theme-dark .bg-white\/10,
+.theme-dark .backdrop-blur-md {
+  background: var(--card-bg-dark) !important;
+  color: var(--main-text-dark) !important;
+  border-color: var(--card-border-dark) !important;
+}
+.theme-light .bg-white\/10,
+.theme-light .backdrop-blur-md {
+  background: var(--card-bg-light) !important;
+  color: var(--main-text-light) !important;
+  border-color: var(--card-border-light) !important;
+}
+.theme-dark .text-blue-100,
+.theme-dark .text-blue-200,
+.theme-dark .text-blue-300 {
+  color: #b8d0f8 !important;
+}
+.theme-light .text-blue-100,
+.theme-light .text-blue-200 {
+  color: #7a7a7a !important;
+}
+.theme-light .text-white {
+  color: #e4e7ed !important;
+}
+.theme-light .text-blue-400 {
+  color: #6b6d70 !important;
+}
+.theme-light .text-blue-300 {
+  color: #5b5b5b !important;
+}
+.theme-light .text-white-100 {
+  color: #4a4a4b !important;
+}
+@keyframes hacker-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-18px); }
+}
+.animate-hacker-float {
+  animation: hacker-float 3s ease-in-out infinite;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.18s cubic-bezier(0.4,0,0.2,1);
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+.LoginPageLabel {
+  @apply block text-sm font-semibold mb-1 text-[#b8bcd5];
+}
+.LoginPageButton{
+  @apply w-full py-3 mt-2 rounded-xl bg-gradient-to-r from-[#3fa9f5] to-[#4176e4] text-white font-bold text-lg shadow-lg transition-all duration-200 hover:scale-105 hover:shadow-blue-400/40 focus:outline-none focus:ring-2 focus:ring-blue-400/60 flex items-center justify-center;
+}
+
+.LoginPageInput{
+  @apply w-full px-4 py-2 rounded-xl bg-white/20 border border-blue-300 text-white placeholder-[#b8bcd5] focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white/30 transition;
+}
+
+.GoogleButton{
+  @apply w-full py-3 mt-2 rounded-xl flex items-center justify-center gap-2 bg-[#1e2a5a] text-white font-medium hover:bg-[#24305e] transition border border-[#3a4a7a] shadow text-base;
+}
+
+.MainGradient{
+  @apply bg-gradient-to-br from-[#0b2a5b] via-[#0e3a7b] to-[#0a1a3a];
+}
+
+.HeroGradient{
+  @apply bg-gradient-to-br from-[#0d1f3f] to-[#0b1a35];
+}
