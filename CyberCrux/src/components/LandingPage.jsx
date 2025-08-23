@@ -6,7 +6,6 @@ import {
 } from 'react-icons/bi';
 import { FaFire, FaUser } from 'react-icons/fa';
 import { Link } from "react-router-dom";
-import { IoIosArrowDown } from "react-icons/io";
 
 // Intersection observer hook for scroll animations
 function useInView(threshold = 0.2) {
@@ -36,10 +35,6 @@ export default function LandingPage() {
 
   // Email state
   const [email, setEmail] = useState("");
-  const handleSubmit = e => {
-    e.preventDefault();
-    alert(`Submitted: ${email}`);
-  };
 
   // Features data
   const features = [
@@ -98,7 +93,7 @@ export default function LandingPage() {
           </p>
           
           {/* Enhanced form with better styling */}
-          <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3 justify-center items-center max-w-lg mx-auto px-4 mb-6">
+          <form className="flex flex-col sm:flex-row gap-3 justify-center items-center max-w-lg mx-auto px-4 mb-6">
             <div className="relative w-full sm:w-72">
             <input
               type="email"
@@ -110,13 +105,13 @@ export default function LandingPage() {
               />
               <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-500/20 to-purple-500/20 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
             </div>
-            <button 
-              type="submit" 
+            <Link 
+              to="/signup"
               className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-600 text-white px-6 sm:px-8 py-3 rounded-xl font-bold text-sm sm:text-base flex items-center gap-2 transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-blue-500/25 w-full sm:w-auto justify-center backdrop-blur-sm"
             >
               <BiRocket className="w-4 h-4 animate-pulse" />
               Join Free
-            </button>
+            </Link>
           </form>
           
           {/* Trust indicators */}

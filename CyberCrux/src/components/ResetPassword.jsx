@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import MainNavbar from "./MainNav";
 import Footer from "./Footer";
-import { FiLock } from "react-icons/fi";
+import { FiLock, FiEye, FiEyeOff } from "react-icons/fi";
 
 export default function ResetPassword() {
   const { token } = useParams();
@@ -12,6 +12,27 @@ export default function ResetPassword() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: "", isError: false });
+  const [passwordStrength, setPasswordStrength] = useState({
+    length: false,
+    uppercase: false,
+    lowercase: false,
+    number: false,
+    symbol: false
+  });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showPasswordHint, setShowPasswordHint] = useState(false);
+
+  const handlePasswordChange = (value) => {
+    setPassword(value);
+    setPasswordStrength({
+      length: value.length >= 8,
+      uppercase: /[A-Z]/.test(value),
+      lowercase: /[a-z]/.test(value),
+      number: /\d/.test(value),
+      symbol: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(value)
+    });
+  };
 
   const handleReset = async (e) => {
     e.preventDefault();
@@ -24,9 +45,11 @@ export default function ResetPassword() {
       return;
     }
 
-    if (password.length < 6) {
+    // Password strength validation
+    const isPasswordStrong = Object.values(passwordStrength).every(Boolean);
+    if (!isPasswordStrong) {
       setMessage({
-        text: "Password must be at least 6 characters long",
+        text: "Password must meet all strength requirements",
         isError: true
       });
       return;
@@ -97,30 +120,84 @@ export default function ResetPassword() {
                 <label className="block text-sm font-semibold mb-2 text-gray-200">
                   New Password
                 </label>
-                <input
-                  type="password"
-                  placeholder="Enter new password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-300"
-                  required
-                  minLength="6"
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter new password"
+                    value={password}
+                    onChange={(e) => handlePasswordChange(e.target.value)}
+                    onFocus={() => setShowPasswordHint(true)}
+                    onBlur={() => setShowPasswordHint(false)}
+                    className="w-full px-4 py-3 pr-12 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-300"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-400 hover:scale-110 transition-all duration-200 p-1 rounded-full hover:bg-white/10"
+                  >
+                    {showPassword ? <FiEyeOff className="w-5 h-5" /> : <FiEye className="w-5 h-5" />}
+                  </button>
+                </div>
+                
+                {/* Password Requirements Hint - Show briefly on focus */}
+                {showPasswordHint && !password && (
+                  <div className="mt-2 text-xs text-gray-400 bg-white/5 rounded-lg p-2">
+                    💡 Password must be at least 8 characters with uppercase, lowercase, number, and special character
+                  </div>
+                )}
+                
+                {/* Password Strength Indicator - Only show when password is weak or there's an error */}
+                {(password && !Object.values(passwordStrength).every(Boolean)) && (
+                  <div className="mt-3 space-y-2">
+                    <div className="text-xs text-gray-400 mb-2">Password must contain:</div>
+                    <div className="space-y-1">
+                      <div className={`flex items-center text-xs ${passwordStrength.length ? 'text-green-400' : 'text-red-400'}`}>
+                        <span className={`w-2 h-2 rounded-full mr-2 ${passwordStrength.length ? 'bg-green-400' : 'bg-red-400'}`}></span>
+                        At least 8 characters
+                      </div>
+                      <div className={`flex items-center text-xs ${passwordStrength.uppercase ? 'text-green-400' : 'text-red-400'}`}>
+                        <span className={`w-2 h-2 rounded-full mr-2 ${passwordStrength.uppercase ? 'bg-green-400' : 'bg-red-400'}`}></span>
+                        One uppercase letter (A-Z)
+                      </div>
+                      <div className={`flex items-center text-xs ${passwordStrength.lowercase ? 'text-green-400' : 'text-red-400'}`}>
+                        <span className={`w-2 h-2 rounded-full mr-2 ${passwordStrength.lowercase ? 'bg-green-400' : 'bg-red-400'}`}></span>
+                        One lowercase letter (a-z)
+                      </div>
+                      <div className={`flex items-center text-xs ${passwordStrength.number ? 'text-green-400' : 'text-red-400'}`}>
+                        <span className={`w-2 h-2 rounded-full mr-2 ${passwordStrength.number ? 'bg-green-400' : 'bg-red-400'}`}></span>
+                        One number (0-9)
+                      </div>
+                      <div className={`flex items-center text-xs ${passwordStrength.symbol ? 'text-green-400' : 'text-red-400'}`}>
+                        <span className={`w-2 h-2 rounded-full mr-2 ${passwordStrength.symbol ? 'bg-green-400' : 'bg-red-400'}`}></span>
+                        One special character (!@#$%^&*)
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
               
               <div>
                 <label className="block text-sm font-semibold mb-2 text-gray-200">
                   Confirm New Password
                 </label>
-                <input
-                  type="password"
-                  placeholder="Confirm new password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-300"
-                  required
-                  minLength="6"
-                />
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="Confirm new password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full px-4 py-3 pr-12 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-300"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-400 hover:scale-110 transition-all duration-200 p-1 rounded-full hover:bg-white/10"
+                  >
+                    {showConfirmPassword ? <FiEyeOff className="w-5 h-5" /> : <FiEye className="w-5 h-5" />}
+                  </button>
+                </div>
               </div>
               
               <button

@@ -1,4 +1,4 @@
-import { FaBook, FaMap, FaTools, FaHome, FaList, FaBlog, FaPuzzlePiece, FaBars, FaProjectDiagram } from "react-icons/fa";
+import { FaBook, FaMap, FaTools, FaHome, FaList, FaBlog, FaPuzzlePiece, FaBars, FaProjectDiagram, FaGamepad, FaMedal, FaBell } from "react-icons/fa";
 import { NavLink } from "react-router-dom";
 import { useState } from "react";
 
@@ -9,8 +9,11 @@ const navItems = [
   { label: "Books", icon: <FaBook />, to: "/admin/books" },
   { label: "Practice", icon: <FaPuzzlePiece />, to: "/admin/practice" },
   { label: "Tools", icon: <FaTools />, to: "/admin/tools" },
+  { label: "Tool Practice", icon: <FaGamepad />, to: "/admin/tool-practice" },
   { label: "HomeLabs", icon: <FaList />, to: "/admin/homelabs" },
   { label: "Projects", icon: <FaProjectDiagram />, to: "/admin/projects" },
+  { label: "Badges", icon: <FaMedal />, to: "/admin/badges" },
+  { label: "Notifications", icon: <FaBell />, to: "/admin/notifications" },
 ];
 
 export default function Sidebar() {

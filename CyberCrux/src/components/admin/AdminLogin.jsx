@@ -1,30 +1,68 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
-const ADMIN_USERNAME = "admin";
-const ADMIN_PASSWORD = "cybercrux123";
 const ADMIN_AUTH_KEY = "cybercrux_admin_logged_in";
 
 export default function AdminLogin() {
   const [form, setForm] = useState({ username: "", password: "" });
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  // Check if already logged in
+  useEffect(() => {
+    const checkAdminAuth = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/admin/verify', {
+          credentials: 'include'
+        });
+        
+        if (response.ok) {
+          navigate("/admin/blogs");
+        }
+      } catch (error) {
+        // Not authenticated, stay on login page
+      }
+    };
+
+    checkAdminAuth();
+  }, [navigate]);
 
   function handleChange(e) {
     const { name, value } = e.target;
     setForm(f => ({ ...f, [name]: value }));
+    setError(""); // Clear error when user types
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
-    if (
-      form.username === ADMIN_USERNAME &&
-      form.password === ADMIN_PASSWORD
-    ) {
-      localStorage.setItem(ADMIN_AUTH_KEY, "true");
-      navigate("/admin/blogs");
-    } else {
-      setError("Invalid username or password");
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch('http://localhost:5000/api/admin/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(form)
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        // Set local flag for frontend routing
+        localStorage.setItem(ADMIN_AUTH_KEY, "true");
+        navigate("/admin/blogs");
+      } else {
+        setError(data.message || "Login failed");
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      setError("Network error. Please try again.");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -35,32 +73,53 @@ export default function AdminLogin() {
         onSubmit={handleSubmit}
       >
         <h1 className="text-2xl font-bold text-center text-blue-700 mb-2">Admin Login</h1>
-        {error && <div className="text-red-500 text-center">{error}</div>}
-        <input
-          className="border p-3 rounded text-lg"
-          placeholder="Username"
-          name="username"
-          value={form.username}
-          onChange={handleChange}
-          autoComplete="username"
-          required
-        />
-        <input
-          className="border p-3 rounded text-lg"
-          placeholder="Password"
-          name="password"
-          type="password"
-          value={form.password}
-          onChange={handleChange}
-          autoComplete="current-password"
-          required
-        />
+        
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-center">
+            {error}
+          </div>
+        )}
+        
+        <div className="space-y-4">
+          <input
+            className="border border-gray-300 p-3 rounded-lg text-lg w-full focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="Username"
+            name="username"
+            value={form.username}
+            onChange={handleChange}
+            autoComplete="username"
+            required
+            disabled={loading}
+          />
+          <input
+            className="border border-gray-300 p-3 rounded-lg text-lg w-full focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="Password"
+            name="password"
+            type="password"
+            value={form.password}
+            onChange={handleChange}
+            autoComplete="current-password"
+            required
+            disabled={loading}
+          />
+        </div>
+        
         <button
           type="submit"
-          className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded transition"
+          disabled={loading}
+          className={`w-full font-bold py-3 rounded-lg transition ${
+            loading 
+              ? 'bg-gray-400 cursor-not-allowed' 
+              : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800'
+          } text-white`}
         >
-          Login
+          {loading ? 'Logging in...' : 'Login'}
         </button>
+        
+        <div className="text-center text-sm text-gray-600">
+          <p>🔒 Secure admin access</p>
+          <p>Rate limited • Session based • HTTP-only cookies</p>
+        </div>
       </form>
     </div>
   );

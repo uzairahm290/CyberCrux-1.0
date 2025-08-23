@@ -44,13 +44,13 @@ export default function MainNavbar({ streak }) {
   return (
     <nav className="sticky top-0 z-50 flex items-center justify-between px-4 md:px-8 py-4 bg-white/10 backdrop-blur-xl border-b border-white/10 shadow-lg shadow-blue-500/10">
       <Link to="/" className="flex items-center gap-3 group">
-        <img src="/src/assets/Logo.png" alt="Logo" className="h-10 group-hover:opacity-80 transition" />
-        <span className="text-2xl font-bold bg-gradient-to-r from-blue-300 to-purple-300 bg-clip-text text-transparent group-hover:opacity-80 transition">
+        <img src="/src/assets/Logo.png" alt="Logo" className="h-12 group-hover:opacity-80 transition" />
+        <span className="text-2xl font-bold pb-2 bg-gradient-to-r from-blue-300 to-purple-300 bg-clip-text text-transparent group-hover:opacity-80 transition">
           CyberCrux
         </span>
       </Link>
       {/* Desktop Nav */}
-      <div className="hidden md:flex items-center gap-8 font-medium text-md mr-100 relative">
+      <div className="hidden md:flex items-center gap-10 font-medium text-md relative">
         <NavLink
           to="/"
           className={({ isActive }) =>
@@ -72,14 +72,14 @@ export default function MainNavbar({ streak }) {
           Features
         </NavLink>
         <NavLink
-          to="/blog"
+          to="/contact"
           className={({ isActive }) =>
             `transition-all hover:text-blue-400 hover:underline underline-offset-8 px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-blue-400 ${
               isActive ? "underline text-blue-400 decoration-2 decoration-blue-400" : "text-white"
             }`
           }
         >
-          Blog
+          Contact
         </NavLink>
         <NavLink
           to="/about-us"

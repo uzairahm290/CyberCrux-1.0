@@ -1,188 +1,107 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import DashNav from "./DashNav";
 import Footer from "./Footer";
-import { FaWrench, FaTerminal, FaLock, FaNetworkWired, FaBug, FaUpload, FaRocket, FaSearch, FaStar, FaDownload, FaEye, FaCode, FaBook, FaPlay } from "react-icons/fa";
+import ToolPracticeGame from "./ToolPracticeGame";
+import {
+  FaWrench, FaTerminal, FaLock, FaNetworkWired, FaBug, FaUpload, FaRocket,
+  FaSearch, FaStar, FaDownload, FaEye, FaCode, FaBook, FaPlay
+} from "react-icons/fa";
+import DOMPurify from "dompurify";
 import { BiCategory, BiChevronRight } from "react-icons/bi";
 import { useTheme } from '../ThemeContext';
 
-// Enhanced tools with more details
-const tools = [
-  {
-    id: 1,
-    name: "Nmap",
-    description: "Network discovery and security auditing tool for network exploration and security scanning.",
-    category: "network",
-    type: "Network Scanner",
-    author: "Gordon Lyon",
-    rating: 4.9,
-    downloads: 15420,
-    icon: <FaNetworkWired className="text-blue-400 text-3xl" />,
-    featured: true,
-    difficulty: "Beginner",
-    platforms: ["Linux", "Windows", "macOS"],
-    license: "Open Source",
-    website: "https://nmap.org",
-    commands: ["nmap -sS 192.168.1.1", "nmap -A -T4 scanme.nmap.org"],
-    tutorials: 15,
-    practiceScenarios: 8,
-  },
-  {
-    id: 2,
-    name: "Metasploit",
-    description: "Penetration testing framework for finding, exploiting, and validating vulnerabilities.",
-    category: "exploitation",
-    type: "Penetration Testing",
-    author: "Rapid7",
-    rating: 4.8,
-    downloads: 8920,
-    icon: <FaBug className="text-pink-400 text-3xl" />,
-    featured: true,
-    difficulty: "Intermediate",
-    platforms: ["Linux", "Windows"],
-    license: "Proprietary",
-    website: "https://metasploit.com",
-    commands: ["msfconsole", "use exploit/windows/smb/ms17_010_eternalblue"],
-    tutorials: 12,
-    practiceScenarios: 10,
-  },
-  {
-    id: 3,
-    name: "John the Ripper",
-    description: "Fast password cracker for Unix, Windows, and more with support for hundreds of hash types.",
-    category: "password",
-    type: "Password Cracker",
-    author: "Openwall",
-    rating: 4.7,
-    downloads: 5670,
-    icon: <FaLock className="text-yellow-300 text-3xl" />,
-    featured: false,
-    difficulty: "Intermediate",
-    platforms: ["Linux", "Windows", "macOS"],
-    license: "Open Source",
-    website: "https://www.openwall.com/john/",
-    commands: ["john --wordlist=wordlist.txt hash.txt", "john --show hash.txt"],
-    tutorials: 8,
-    practiceScenarios: 6,
-  },
-  {
-    id: 4,
-    name: "Wireshark",
-    description: "Network protocol analyzer for real-time traffic analysis and packet inspection.",
-    category: "network",
-    type: "Protocol Analyzer",
-    author: "Wireshark Foundation",
-    rating: 4.6,
-    downloads: 12340,
-    icon: <FaNetworkWired className="text-green-400 text-3xl" />,
-    featured: false,
-    difficulty: "Beginner",
-    platforms: ["Linux", "Windows", "macOS"],
-    license: "Open Source",
-    website: "https://wireshark.org",
-    commands: ["wireshark -i eth0", "tshark -r capture.pcap"],
-    tutorials: 20,
-    practiceScenarios: 12,
-  },
-  {
-    id: 5,
-    name: "Burp Suite",
-    description: "Web application security testing platform for finding vulnerabilities in web apps.",
-    category: "web",
-    type: "Web Security",
-    author: "PortSwigger",
-    rating: 4.8,
-    downloads: 7890,
-    icon: <FaBug className="text-orange-400 text-3xl" />,
-    featured: true,
-    difficulty: "Intermediate",
-    platforms: ["Linux", "Windows", "macOS"],
-    license: "Proprietary",
-    website: "https://portswigger.net/burp",
-    commands: ["burpsuite", "java -jar burpsuite.jar"],
-    tutorials: 18,
-    practiceScenarios: 15,
-  },
-  {
-    id: 6,
-    name: "Hashcat",
-    description: "Advanced password recovery tool with GPU acceleration and extensive hash support.",
-    category: "password",
-    type: "Password Recovery",
-    author: "Hashcat Team",
-    rating: 4.7,
-    downloads: 4560,
-    icon: <FaLock className="text-purple-400 text-3xl" />,
-    featured: false,
-    difficulty: "Advanced",
-    platforms: ["Linux", "Windows", "macOS"],
-    license: "Open Source",
-    website: "https://hashcat.net",
-    commands: ["hashcat -m 0 -a 0 hash.txt wordlist.txt", "hashcat -m 1000 -a 3 hash.txt ?a?a?a?a"],
-    tutorials: 10,
-    practiceScenarios: 8,
-  },
-  {
-    id: 7,
-    name: "Aircrack-ng",
-    description: "Complete suite of tools for wireless network security assessment and penetration testing.",
-    category: "wireless",
-    type: "Wireless Security",
-    author: "Aircrack-ng Team",
-    rating: 4.5,
-    downloads: 3450,
-    icon: <FaNetworkWired className="text-cyan-400 text-3xl" />,
-    featured: false,
-    difficulty: "Intermediate",
-    platforms: ["Linux"],
-    license: "Open Source",
-    website: "https://aircrack-ng.org",
-    commands: ["airmon-ng start wlan0", "airodump-ng wlan0mon"],
-    tutorials: 14,
-    practiceScenarios: 9,
-  },
-  {
-    id: 8,
-    name: "SQLMap",
-    description: "Automated SQL injection and database takeover tool for web application testing.",
-    category: "web",
-    type: "SQL Injection",
-    author: "SQLMap Team",
-    rating: 4.6,
-    downloads: 6780,
-    icon: <FaCode className="text-red-400 text-3xl" />,
-    featured: false,
-    difficulty: "Intermediate",
-    platforms: ["Linux", "Windows", "macOS"],
-    license: "Open Source",
-    website: "https://sqlmap.org",
-    commands: ["sqlmap -u 'http://target.com/page?id=1'", "sqlmap -u 'http://target.com' --dbs"],
-    tutorials: 16,
-    practiceScenarios: 11,
-  },
-];
-
-const categories = [
-  { id: 'all', name: 'All Tools', count: tools.length },
-  { id: 'network', name: 'Network', count: tools.filter(t => t.category === 'network').length },
-  { id: 'web', name: 'Web Security', count: tools.filter(t => t.category === 'web').length },
-  { id: 'password', name: 'Password', count: tools.filter(t => t.category === 'password').length },
-  { id: 'exploitation', name: 'Exploitation', count: tools.filter(t => t.category === 'exploitation').length },
-  { id: 'wireless', name: 'Wireless', count: tools.filter(t => t.category === 'wireless').length },
-];
+const iconMap = {
+  FaNetworkWired,
+  FaBug,
+  FaLock,
+  FaCode,
+  FaPlay,
+  FaBook,
+  FaTerminal,
+  FaUpload,
+  FaRocket,
+  FaSearch,
+  FaStar,
+  FaDownload,
+  FaEye,
+  FaWrench, // fallback
+};
 
 export default function ToolsPage() {
+  const [tools, setTools] = useState([]);
+  const [categories, setCategories] = useState([{ id: 'all', name: 'All Tools', count: 0 }]);
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('featured');
   const [viewMode, setViewMode] = useState('grid');
   const [mobileCategoryMenuOpen, setMobileCategoryMenuOpen] = useState(false);
+  const [selectedTool, setSelectedTool] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [showGame, setShowGame] = useState(false);
   const { theme } = useTheme();
+
+  // Fetch all tools
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    fetch('http://localhost:5000/api/tools')
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to fetch tools');
+        return res.json();
+      })
+      .then((data) => {
+        setTools(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        setError(err.message);
+        setLoading(false);
+      });
+  }, []);
+
+  // Fetch dynamic categories based on tools
+  useEffect(() => {
+    fetch('http://localhost:5000/api/tools/categories')
+      .then(res => res.json())
+      .then(data => {
+        const dynamicCategories = [
+          { id: 'all', name: 'All Tools', count: tools.length },
+          ...data.map(cat => ({
+            id: cat.toLowerCase(),
+            name: cat.charAt(0).toUpperCase() + cat.slice(1),
+            count: tools.filter(t => t.category?.toLowerCase() === cat.toLowerCase()).length
+          }))
+        ];
+        setCategories(dynamicCategories);
+      })
+      .catch(err => console.error('Failed to fetch categories', err));
+  }, [tools]);
+
+  // Tool practice game handlers
+  const handlePracticeClick = (tool) => {
+    setSelectedTool(tool);
+    setShowGame(true);
+  };
+
+  const handleGameComplete = (score) => {
+    console.log(`Game completed with score: ${score}`);
+    // You can add additional logic here like updating user stats
+  };
+
+  const handleCloseGame = () => {
+    setShowGame(false);
+    setSelectedTool(null);
+  };
 
   // Filter and sort tools
   const filteredTools = tools
     .filter(tool => {
       const matchesCategory = selectedCategory === 'all' || tool.category === selectedCategory;
-      const matchesSearch = tool.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      const matchesSearch =
+        tool.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            tool.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            tool.type.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesCategory && matchesSearch;
@@ -190,7 +109,7 @@ export default function ToolsPage() {
     .sort((a, b) => {
       switch (sortBy) {
         case 'featured':
-          return b.featured - a.featured;
+          return (b.featured ? 1 : 0) - (a.featured ? 1 : 0);
         case 'rating':
           return b.rating - a.rating;
         case 'downloads':
@@ -205,6 +124,78 @@ export default function ToolsPage() {
     });
 
   const featuredTools = tools.filter(tool => tool.featured);
+
+
+  // Modal for tool details
+  function ToolDetailModal({ tool, onClose }) {
+    if (!tool) return null;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div className="bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-900 p-6 rounded-3xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto relative border border-white/20">
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl font-bold"
+            aria-label="Close"
+          >
+            ×
+          </button>
+          <div className="flex items-center gap-3 mb-3">
+            <div className="text-3xl">
+              {/* Render icon by name if needed, fallback to FaWrench */}
+              {iconMap[tool.icon] ? React.createElement(iconMap[tool.icon], { className: "text-blue-400 text-2xl" }) : <FaWrench className="text-blue-400 text-2xl" />}
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-white mb-1">{tool.name}</h2>
+              <div className="flex items-center gap-2 text-sm text-gray-400">
+                <FaStar className="w-3 h-3 text-yellow-400" />
+                <span>{tool.rating}</span>
+                <span className="mx-2">•</span>
+                <span>{tool.downloads?.toLocaleString() || 0} downloads</span>
+              </div>
+            </div>
+          </div>
+          <p className="text-gray-300 mb-3 text-sm">{tool.description}</p>
+          <div className="flex flex-wrap gap-2 mb-3">
+            <span className="px-2 py-1 bg-white/10 rounded-full text-xs text-gray-300">{tool.type}</span>
+            <span className="px-2 py-1 bg-white/10 rounded-full text-xs text-gray-300">{tool.difficulty}</span>
+            <span className="px-2 py-1 bg-white/10 rounded-full text-xs text-gray-300">{tool.license}</span>
+            {tool.platforms && tool.platforms.map((p) => (
+              <span key={p} className="px-2 py-1 bg-white/10 rounded-full text-xs text-gray-300">{p}</span>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-4 mb-3 text-sm">
+            <div>
+              <span className="font-semibold text-white">Author:</span> <span className="text-gray-300">{tool.author}</span>
+            </div>
+          </div>
+          {tool.website && (
+            <div className="mb-3 text-sm">
+              <span className="font-semibold text-white">Website:</span> 
+              <a href={tool.website} target="_blank" rel="noopener noreferrer" className="text-blue-400 underline ml-1">{tool.website}</a>
+            </div>
+          )}
+          <div className="mb-4 p-4 bg-gradient-to-br from-gray-800 via-gray-900 to-black rounded-xl shadow-lg border border-gray-700">
+            <h3 className="text-white font-bold text-lg mb-3 flex items-center gap-2">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-5 w-5 text-green-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-3-3v6m-9 4h18" />
+              </svg>
+              How to Use
+            </h3>
+            <div
+              className="prose prose-invert max-w-none text-gray-300 leading-relaxed tracking-wide text-sm"
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(tool.how_to_use || "") }}
+            />
+          </div>
+</div>  
+</div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-900 text-white">
@@ -240,7 +231,7 @@ export default function ToolsPage() {
               </span>
               <span className="flex items-center gap-2">
                 <FaDownload className="w-4 h-4" />
-                {tools.reduce((total, tool) => total + tool.downloads, 0).toLocaleString()} Downloads
+                {tools.reduce((total, tool) => total + (tool.downloads || 0), 0).toLocaleString()} Downloads
               </span>
             </div>
           </div>
@@ -265,7 +256,8 @@ export default function ToolsPage() {
                   >
                     <div className="flex items-start gap-4">
                       <div className="flex-shrink-0">
-                {tool.icon}
+                        {/* Render icon by name if needed, or use a default icon */}
+                        {iconMap[tool.icon] ? React.createElement(iconMap[tool.icon], { className: "text-3xl text-blue-400" }) : <FaWrench className="text-3xl text-blue-400" />}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-2">
@@ -281,7 +273,9 @@ export default function ToolsPage() {
                         <p className="text-gray-400 text-sm mb-3 line-clamp-2">{tool.description}</p>
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-gray-400">{tool.type}</span>
-                          <button className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-all duration-300 transform hover:scale-105">
+                          <button className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-all duration-300 transform hover:scale-105"
+                            onClick={() => { setSelectedTool(tool); setShowModal(true); }}
+                          >
                             Learn More
                           </button>
                         </div>
@@ -380,6 +374,19 @@ export default function ToolsPage() {
 
               {/* Main Content Area */}
               <div className="lg:col-span-3">
+                {/* Loading/Error States */}
+                {loading && (
+                  <div className="text-center py-12">
+                    <span className="text-xl text-gray-300">Loading tools...</span>
+                  </div>
+                )}
+                {error && (
+                  <div className="text-center py-12">
+                    <span className="text-xl text-red-400">{error}</span>
+                  </div>
+                )}
+                {!loading && !error && (
+                  <>
                 {/* Search and Filter Bar */}
                 <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl mb-8">
                   <div className="flex flex-col sm:flex-row gap-4">
@@ -399,7 +406,7 @@ export default function ToolsPage() {
                     <select
                       value={sortBy}
                       onChange={(e) => setSortBy(e.target.value)}
-                      className="px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="px-4 py-3 bg-white text-blue-900 border border-blue-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="featured">Featured First</option>
                       <option value="rating">Highest Rated</option>
@@ -451,7 +458,7 @@ export default function ToolsPage() {
                       >
                         <div className="text-center">
                           <div className="flex justify-center mb-4">
-                            {tool.icon}
+                                {iconMap[tool.icon] ? React.createElement(iconMap[tool.icon], { className: "text-3xl text-blue-400" }) : <FaWrench className="text-3xl text-blue-400" />}
                           </div>
                           <div className="flex items-center justify-center gap-2 mb-3">
                             <div className="flex items-center gap-1">
@@ -459,7 +466,7 @@ export default function ToolsPage() {
                               <span className="text-sm text-gray-300">{tool.rating}</span>
                             </div>
                             <span className="text-gray-500">•</span>
-                            <span className="text-sm text-gray-400">{tool.downloads.toLocaleString()} downloads</span>
+                                <span className="text-sm text-gray-400">{(tool.downloads || 0).toLocaleString()} downloads</span>
                           </div>
                           <h3 className="font-bold text-lg mb-2 text-white line-clamp-2">{tool.name}</h3>
                           <p className="text-gray-400 text-sm mb-4 line-clamp-3">{tool.description}</p>
@@ -472,10 +479,16 @@ export default function ToolsPage() {
                             </span>
                           </div>
                           <div className="flex gap-2">
-                            <button className="flex-1 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white py-2 rounded-lg font-medium text-sm transition-all duration-300 transform hover:scale-105">
+                                <button
+                                  className="flex-1 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white py-2 rounded-lg font-medium text-sm transition-all duration-300 transform hover:scale-105"
+                                  onClick={() => { setSelectedTool(tool); setShowModal(true); }}
+                                >
                               Learn More
                             </button>
-                            <button className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white py-2 rounded-lg font-medium text-sm transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-1">
+                            <button 
+                              onClick={() => handlePracticeClick(tool)}
+                              className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white py-2 rounded-lg font-medium text-sm transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-1"
+                            >
                               <FaPlay className="w-3 h-3" />
                               Practice
                             </button>
@@ -493,7 +506,7 @@ export default function ToolsPage() {
                       >
                         <div className="flex items-start gap-6">
                           <div className="flex-shrink-0">
-                            {tool.icon}
+                                {iconMap[tool.icon] ? React.createElement(iconMap[tool.icon], { className: "text-3xl text-blue-400" }) : <FaWrench className="text-3xl text-blue-400" />}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-3 mb-2">
@@ -506,12 +519,12 @@ export default function ToolsPage() {
                             <p className="text-gray-400 mb-3">{tool.description}</p>
                             <div className="flex items-center gap-6 text-sm text-gray-400 mb-4">
                               <span className="flex items-center gap-2">
-                                <FaUser className="w-4 h-4" />
+                                    {/* FaUser may not be imported, fallback to author name only */}
                                 {tool.author}
                               </span>
                               <span className="flex items-center gap-2">
                                 <FaEye className="w-4 h-4" />
-                                {tool.downloads.toLocaleString()} downloads
+                                    {(tool.downloads || 0).toLocaleString()} downloads
                               </span>
                               <span className="flex items-center gap-2">
                                 <FaBook className="w-4 h-4" />
@@ -534,10 +547,16 @@ export default function ToolsPage() {
                               </span>
                             </div>
                             <div className="flex gap-3">
-                              <button className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-6 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 shadow-lg">
+                                  <button
+                                    className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-6 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 shadow-lg"
+                                    onClick={() => { setSelectedTool(tool); setShowModal(true); }}
+                                  >
                                 Learn More
                               </button>
-                              <button className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-6 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center gap-2">
+                              <button 
+                                onClick={() => handlePracticeClick(tool)}
+                                className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-6 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center gap-2"
+                              >
                                 <FaPlay className="w-4 h-4" />
                                 Practice
                               </button>
@@ -548,7 +567,6 @@ export default function ToolsPage() {
             ))}
           </div>
                 )}
-
                 {/* No Results */}
                 {filteredTools.length === 0 && (
                   <div className="text-center py-12">
@@ -556,29 +574,28 @@ export default function ToolsPage() {
                     <h3 className="text-xl font-bold text-gray-300 mb-2">No tools found</h3>
                     <p className="text-gray-400">Try adjusting your search or filter criteria</p>
                   </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
           </div>
         </section>
 
-        {/* Upload Section */}
-        <section className="px-4 pb-16">
-          <div className="max-w-4xl mx-auto">
-            <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 rounded-3xl p-8 border border-white/20 text-center">
-              <FaUpload className="text-4xl text-blue-400 mx-auto mb-4" />
-              <h2 className="text-2xl font-bold mb-4">Upload or Manage Your Tools Content</h2>
-              <p className="text-gray-300 mb-6">
-                Coming soon: Add your own tool writeups, guides, or command practice modules to share with the community!
-              </p>
-              <button className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-8 py-3 rounded-xl font-bold transition-all duration-300 transform hover:scale-105 shadow-lg" disabled>
-                Upload Tool (Coming Soon)
-              </button>
-            </div>
-          </div>
-        </section>
       </div>
       <Footer />
+      {showModal && (
+        <ToolDetailModal tool={selectedTool} onClose={() => { setShowModal(false); setSelectedTool(null); }} />
+      )}
+      
+      {/* Tool Practice Game Modal */}
+      {showGame && selectedTool && (
+        <ToolPracticeGame
+          toolName={selectedTool.name}
+          onGameComplete={handleGameComplete}
+          onClose={handleCloseGame}
+        />
+      )}
     </div>
   );
 } 

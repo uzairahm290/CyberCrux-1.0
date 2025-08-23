@@ -3,13 +3,14 @@ import Footer from "./Footer";
 import { FcGoogle } from "react-icons/fc";
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { FiUserPlus } from "react-icons/fi";
+import { FiUserPlus, FiEye, FiEyeOff } from "react-icons/fi";
 import DOMPurify from 'dompurify';
 
 export default function () {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     username: "",
+    fullName: "",
     email: "",
     password: "",
     confirmPassword: "",
@@ -17,6 +18,16 @@ export default function () {
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [passwordStrength, setPasswordStrength] = useState({
+    length: false,
+    uppercase: false,
+    lowercase: false,
+    number: false,
+    symbol: false
+  });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showPasswordHint, setShowPasswordHint] = useState(false);
 
   // Sanitize input using DOMPurify
   const sanitizeInput = (input) => {
@@ -30,7 +41,23 @@ export default function () {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: sanitizeInput(value) }));
+    // Don't sanitize fullName field to allow spaces, but sanitize other fields
+    if (name === 'fullName') {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: sanitizeInput(value) }));
+    }
+
+    // Password strength validation
+    if (name === 'password') {
+      setPasswordStrength({
+        length: value.length >= 8,
+        uppercase: /[A-Z]/.test(value),
+        lowercase: /[a-z]/.test(value),
+        number: /\d/.test(value),
+        symbol: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(value)
+      });
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -40,13 +67,13 @@ export default function () {
     setLoading(true);
 
     // Basic validation
-    const { username, email, password, confirmPassword } = formData;
-    if (!username.trim() || !email.trim() || !password || !confirmPassword) {
-      setError('All fields are required');
+    const { username, fullName, email, password, confirmPassword } = formData;
+    if (!fullName.trim() || !email.trim() || !password || !confirmPassword) {
+      setError('Full name, email, and password are required');
       setLoading(false);
       return;
     }
-    if (username.length > 100 || email.length > 100 || password.length > 100) {
+    if (fullName.length > 100 || email.length > 100 || password.length > 100) {
       setError('Input too long');
       setLoading(false);
       return;
@@ -57,6 +84,14 @@ export default function () {
       setLoading(false);
       return;
     }
+    // Password strength validation
+    const isPasswordStrong = Object.values(passwordStrength).every(Boolean);
+    if (!isPasswordStrong) {
+      setError('Password must meet all strength requirements');
+      setLoading(false);
+      return;
+    }
+
     if (password !== confirmPassword) {
       setError('Passwords do not match');
       setLoading(false);
@@ -72,6 +107,7 @@ export default function () {
         credentials: 'include', // For cookies if using sessions
         body: JSON.stringify({
           username: sanitizeInput(formData.username),
+          fullName: sanitizeInput(formData.fullName),
           email: sanitizeInput(formData.email),
           password: sanitizeInput(formData.password),
           confirmPassword: sanitizeInput(formData.confirmPassword)
@@ -86,13 +122,14 @@ export default function () {
   
       const data = await response.json();
   
-      if (!data.success) {
+            if (!data.success) {
         throw new Error(data.message || 'Signup failed');
       }
-  
-      setSuccess(data.message);
+
+      setSuccess(data.message + (data.username ? ` - Your username is: ${data.username}` : ''));
       setFormData({
         username: '',
+        fullName: '',
         email: '',
         password: '',
         confirmPassword: '',
@@ -150,12 +187,27 @@ export default function () {
                 </label>
                 <input
                   type="text"
-                  name="username"
+                  name="fullName"
                   placeholder="John Doe"
+                  className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-300"
+                  value={formData.fullName}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-200">
+                  Username (Optional)
+                  <span className="text-xs text-gray-400 ml-2">Leave empty for auto-generation</span>
+                </label>
+                <input
+                  type="text"
+                  name="username"
+                  placeholder="johndoe123 (optional)"
                   className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-300"
                   value={formData.username}
                   onChange={handleChange}
-                  required
                 />
               </div>
               
@@ -178,30 +230,86 @@ export default function () {
                 <label className="block text-sm font-semibold mb-2 text-gray-200">
                   Password
                 </label>
-                <input
-                  type="password"
-                  name="password"
-                  placeholder="Create a strong password"
-                  className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-300"
-                  value={formData.password}
-                  onChange={handleChange}
-                  required
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    name="password"
+                    placeholder="Create a strong password"
+                    className="w-full px-4 py-3 pr-12 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-300"
+                    value={formData.password}
+                    onChange={handleChange}
+                    onFocus={() => setShowPasswordHint(true)}
+                    onBlur={() => setShowPasswordHint(false)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-400 hover:scale-110 transition-all duration-200 p-1 rounded-full hover:bg-white/10"
+                  >
+                    {showPassword ? <FiEyeOff className="w-5 h-5" /> : <FiEye className="w-5 h-5" />}
+                  </button>
+                </div>
+                
+                {/* Password Requirements Hint - Show briefly on focus */}
+                {showPasswordHint && !formData.password && (
+                  <div className="mt-2 text-xs text-gray-400 bg-white/5 rounded-lg p-2">
+                    💡 Password must be at least 8 characters with uppercase, lowercase, number, and special character
+                  </div>
+                )}
+                
+                {/* Password Strength Indicator - Only show when password is weak or there's an error */}
+                {(formData.password && !Object.values(passwordStrength).every(Boolean)) && (
+                  <div className="mt-3 space-y-2">
+                    <div className="text-xs text-gray-400 mb-2">Password must contain:</div>
+                    <div className="space-y-1">
+                      <div className={`flex items-center text-xs ${passwordStrength.length ? 'text-green-400' : 'text-red-400'}`}>
+                        <span className={`w-2 h-2 rounded-full mr-2 ${passwordStrength.length ? 'bg-green-400' : 'bg-red-400'}`}></span>
+                        At least 8 characters
+                      </div>
+                      <div className={`flex items-center text-xs ${passwordStrength.uppercase ? 'text-green-400' : 'text-red-400'}`}>
+                        <span className={`w-2 h-2 rounded-full mr-2 ${passwordStrength.uppercase ? 'bg-green-400' : 'bg-red-400'}`}></span>
+                        One uppercase letter (A-Z)
+                      </div>
+                      <div className={`flex items-center text-xs ${passwordStrength.lowercase ? 'text-green-400' : 'text-red-400'}`}>
+                        <span className={`w-2 h-2 rounded-full mr-2 ${passwordStrength.lowercase ? 'bg-green-400' : 'bg-red-400'}`}></span>
+                        One lowercase letter (a-z)
+                      </div>
+                      <div className={`flex items-center text-xs ${passwordStrength.number ? 'text-green-400' : 'text-red-400'}`}>
+                        <span className={`w-2 h-2 rounded-full mr-2 ${passwordStrength.number ? 'bg-green-400' : 'bg-red-400'}`}></span>
+                        One number (0-9)
+                      </div>
+                      <div className={`flex items-center text-xs ${passwordStrength.symbol ? 'text-green-400' : 'text-red-400'}`}>
+                        <span className={`w-2 h-2 rounded-full mr-2 ${passwordStrength.symbol ? 'bg-green-400' : 'bg-red-400'}`}></span>
+                        One special character (!@#$%^&*)
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
               
               <div>
                 <label className="block text-sm font-semibold mb-2 text-gray-200">
                   Confirm Password
                 </label>
-                <input
-                  type="password"
-                  name="confirmPassword"
-                  placeholder="Confirm your password"
-                  className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-300"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  required
-                />
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    name="confirmPassword"
+                    placeholder="Confirm your password"
+                    className="w-full px-4 py-3 pr-12 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-300"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-400 hover:scale-110 transition-all duration-200 p-1 rounded-full hover:bg-white/10"
+                  >
+                    {showConfirmPassword ? <FiEyeOff className="w-5 h-5" /> : <FiEye className="w-5 h-5" />}
+                  </button>
+                </div>
               </div>
               
               <button

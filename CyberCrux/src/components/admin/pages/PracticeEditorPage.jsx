@@ -1,469 +1,819 @@
-import { useState, useRef, useEffect } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
-import DOMPurify from "dompurify";
-import { FaListOl, FaChevronRight, FaChevronLeft, FaCheckCircle, FaBookOpen, FaPlus, FaMinus, FaRegSave, FaClipboardList, FaRegFileAlt, FaLink, FaTrash } from "react-icons/fa";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { FaSave, FaTimes, FaPlus, FaTrash, FaEye, FaStar, FaCheckCircle } from "react-icons/fa";
+import { BiCategory, BiTime, BiTargetLock, BiDiamond, BiBrain, BiCode } from "react-icons/bi";
 
-const categories = [
-  { key: "web", label: "Web", icon: <FaBookOpen className="text-blue-400" /> },
-  { key: "forensics", label: "Forensics", icon: <FaClipboardList className="text-green-400" /> },
-  { key: "crypto", label: "Crypto", icon: <FaLink className="text-purple-400" /> },
-  { key: "reverse", label: "Reverse", icon: <FaRegFileAlt className="text-pink-400" /> },
-  { key: "misc", label: "Misc", icon: <FaListOl className="text-yellow-400" /> },
-  { key: "osint", label: "OSINT", icon: <FaClipboardList className="text-cyan-400" /> },
-];
-
-const steps = [
-  { label: "Details", icon: <FaBookOpen /> },
-  { label: "Questions", icon: <FaListOl /> },
-  { label: "Review", icon: <FaCheckCircle /> },
-];
-
-export default function PracticeEditorPage() {
-  const location = useLocation();
+const PracticeEditorPage = () => {
+  console.log("PracticeEditorPage component rendering...");
   const navigate = useNavigate();
-  const { id } = useParams();
-  const editing = Boolean(id);
-  const practices = location.state?.practices || [];
-  const practice = editing ? practices.find(p => p.id === Number(id)) : null;
+  const [activeTab, setActiveTab] = useState("scenario");
+  const [loading, setLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [componentError, setComponentError] = useState(null);
 
-  // Step 1: Meta info
-  const [step, setStep] = useState(1);
-  const [meta, setMeta] = useState({
-    title: practice?.title || "",
-    author: practice?.author || "",
-    description: practice?.description || "",
-    category: practice?.category || categories[0].key,
-    numQuestions: practice?.questions?.length || 1,
+  // States for Category
+  const [category, setCategory] = useState({
+    key_name: "",
+    label: "",
+    description: "",
+    color_gradient: "from-blue-500 to-cyan-500"
   });
-  // Step 2: Questions
-  const [questions, setQuestions] = useState(
-    practice?.questions ||
-      Array.from({ length: meta.numQuestions }, () => ({
-        text: "",
-        options: ["", "", "", ""],
-        correct: 0,
-        solution: "",
-        resources: [""],
-      }))
-  );
-  // Step 2: Resources (global, after all questions)
-  const [resources, setResources] = useState(practice?.resources || "");
 
-  // For animated scroll to new question
-  const lastQuestionRef = useRef(null);
+  // States for Scenario
+  const [scenario, setScenario] = useState({
+    title: "",
+    category: "",
+    difficulty: "Medium",
+    time_estimate: "",
+    questions_count: "",
+    points: "",
+    description: "",
+    short_description: "",
+    tags: [],
+    is_featured: false,
+    is_active: true,
+    file_url: ""
+  });
+
+  // States for Question
+  const [question, setQuestion] = useState({
+    scenario_id: "",
+    question_text: "",
+    correct_answer: "",
+    points: "10",
+    explanation: "",
+    question_order: "0"
+  });
+
+  const [categories, setCategories] = useState([]);
+  const [scenarios, setScenarios] = useState([]);
+  const [newTag, setNewTag] = useState("");
+
+
+  // Fetch categories and scenarios
   useEffect(() => {
-    if (lastQuestionRef.current) {
-      lastQuestionRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    console.log("PracticeEditorPage useEffect running...");
+    try {
+      fetchCategories();
+      fetchScenarios();
+    } catch (error) {
+      console.error("Error in useEffect:", error);
+      setComponentError(error.message);
     }
-  }, [questions.length]);
+  }, []);
 
-  // Handlers
-  function handleMetaChange(e) {
-    const { name, value } = e.target;
-    setMeta(m => ({ ...m, [name]: name === "numQuestions" ? Math.max(1, Number(value)) : value }));
-  }
-
-  function handleNextStep(e) {
-    e.preventDefault();
-    if (step === 1) {
-      // If number of questions changed, adjust questions array
-      if (questions.length !== meta.numQuestions) {
-        setQuestions(qs => {
-          const arr = Array.from({ length: meta.numQuestions }, (_, i) =>
-            qs[i] || { text: "", options: ["", "", "", ""], correct: 0, solution: "", resources: [""] }
-          );
-          return arr;
-        });
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch("http://localhost:5000/api/practice/categories", {
+        credentials: 'include'
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCategories(data.data);
+      } else {
+        // Set default categories if API fails
+        setCategories([
+          { key_name: "web", label: "Web Security" },
+          { key_name: "network", label: "Network Security" },
+          { key_name: "forensics", label: "Digital Forensics" },
+          { key_name: "crypto", label: "Cryptography" },
+          { key_name: "malware", label: "Malware Analysis" },
+          { key_name: "incident", label: "Incident Response" }
+        ]);
       }
-      setStep(2);
-    } else if (step === 2) {
-      setStep(3);
+      } catch (error) {
+      console.error("Error fetching categories:", error);
+      // Set fallback categories
+      setCategories([
+        { key_name: "web", label: "Web Security" },
+        { key_name: "network", label: "Network Security" },
+        { key_name: "forensics", label: "Digital Forensics" },
+        { key_name: "crypto", label: "Cryptography" },
+        { key_name: "malware", label: "Malware Analysis" },
+        { key_name: "incident", label: "Incident Response" }
+      ]);
     }
-  }
+  };
 
-  function handleBack() {
-    setStep(s => Math.max(1, s - 1));
-  }
+  const fetchScenarios = async () => {
+    try {
+      const res = await fetch("http://localhost:5000/api/practice/scenarios", {
+        credentials: 'include'
+      });
+      const data = await res.json();
+      if (data.success) {
+        setScenarios(data.data);
+      }
+    } catch (error) {
+      console.error("Error fetching scenarios:", error);
+    }
+  };
 
-  function handleEditStep(s) {
-    setStep(s);
-  }
+  // Category handlers
+  const handleCategoryChange = (field, value) => {
+    setCategory(prev => ({ ...prev, [field]: value }));
+  };
 
-  function handleQuestionChange(idx, field, value) {
-    setQuestions(qs =>
-      qs.map((q, i) =>
-        i === idx
-          ? field === "options"
-            ? { ...q, options: value }
-            : { ...q, [field]: value }
-          : q
-      )
-    );
-  }
+  const handleAddCategory = async () => {
+    if (!category.key_name || !category.label) {
+      setErrorMessage("Please fill in all required fields for category");
+      return;
+    }
 
-  function handleOptionChange(qIdx, optIdx, value) {
-    setQuestions(qs =>
-      qs.map((q, i) =>
-        i === qIdx
-          ? { ...q, options: q.options.map((opt, j) => (j === optIdx ? value : opt)) }
-          : q
-      )
-    );
-  }
+    setLoading(true);
+    try {
+      const res = await fetch("http://localhost:5000/api/practice/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(category)
+      });
 
-  function handleCorrectChange(qIdx, value) {
-    setQuestions(qs =>
-      qs.map((q, i) =>
-        i === qIdx ? { ...q, correct: value } : q
-      )
-    );
-  }
+      const data = await res.json();
+      if (data.success) {
+      setSuccessMessage("Category added successfully!");
+      setCategory({
+        key_name: "",
+        label: "",
+        description: "",
+          color_gradient: "from-blue-500 to-cyan-500"
+      });
+        fetchCategories(); // Refresh categories
+      setTimeout(() => setSuccessMessage(""), 3000);
+      } else {
+        setErrorMessage(data.message || "Failed to add category");
+      }
+    } catch (error) {
+      console.error("Error adding category:", error);
+      setErrorMessage("An error occurred while adding the category");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  function handleAddResource(qIdx) {
-    setQuestions(qs =>
-      qs.map((q, i) =>
-        i === qIdx ? { ...q, resources: [...q.resources, ""] } : q
-      )
-    );
-  }
+  // Scenario handlers
+  const handleScenarioChange = (field, value) => {
+    setScenario(prev => ({ ...prev, [field]: value }));
+  };
 
-  function handleRemoveResource(qIdx, rIdx) {
-    setQuestions(qs =>
-      qs.map((q, i) =>
-        i === qIdx ? { ...q, resources: q.resources.filter((_, j) => j !== rIdx) } : q
-      )
-    );
-  }
+  const addTag = () => {
+    if (newTag.trim() && !scenario.tags.includes(newTag.trim())) {
+      setScenario(prev => ({
+        ...prev,
+        tags: [...prev.tags, newTag.trim()]
+      }));
+      setNewTag("");
+    }
+  };
 
-  function handleResourceChange(qIdx, rIdx, value) {
-    setQuestions(qs =>
-      qs.map((q, i) =>
-        i === qIdx
-          ? { ...q, resources: q.resources.map((res, j) => (j === rIdx ? value : res)) }
-          : q
-      )
-    );
-  }
+  const removeTag = (tagToRemove) => {
+    setScenario(prev => ({
+      ...prev,
+      tags: prev.tags.filter(tag => tag !== tagToRemove)
+    }));
+  };
 
-  function handleAddQuestion() {
-    setQuestions(qs => [
-      ...qs,
-      { text: "", options: ["", "", "", ""], correct: 0, solution: "", resources: [""] },
-    ]);
-    setMeta(m => ({ ...m, numQuestions: qs.length + 1 }));
-  }
+  const handleAddScenario = async () => {
+    if (!scenario.title || !scenario.category || !scenario.difficulty || !scenario.points) {
+      setErrorMessage("Please fill in all required fields for scenario");
+      return;
+    }
 
-  function handleRemoveQuestion(idx) {
-    if (questions.length === 1) return;
-    setQuestions(qs => qs.filter((_, i) => i !== idx));
-    setMeta(m => ({ ...m, numQuestions: questions.length - 1 }));
-  }
+    setLoading(true);
+    try {
+      const submitData = {
+        ...scenario,
+        points: parseInt(scenario.points),
+        time_estimate: scenario.time_estimate ? parseInt(scenario.time_estimate) : null,
+        questions_count: scenario.questions_count ? parseInt(scenario.questions_count) : null
+      };
 
-  function handleSave(e) {
-    e.preventDefault();
-    // For demo: just go back to admin page
-    navigate("/admin/practice");
-  }
+      const res = await fetch("http://localhost:5000/api/practice/scenarios", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: 'include',
+        body: JSON.stringify(submitData)
+      });
 
-  // UI
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-[#0b2a5b] via-[#0e3a7b] to-[#0a1a3a] py-8 px-2">
-      {/* Sticky Stepper */}
-      <div className="w-full max-w-4xl sticky top-4 z-30 mb-8">
-        <div className="flex items-center justify-center gap-0 md:gap-4 bg-white/10 backdrop-blur-md rounded-2xl shadow border border-white/10 px-2 py-3">
-          {steps.map((s, i) => (
-            <div key={s.label} className="flex items-center gap-2">
-              <button
-                type="button"
-                className={`flex items-center gap-2 px-3 py-1 rounded-lg font-bold text-base transition-all duration-200
-                  ${step === i + 1 ? "bg-gradient-to-r from-blue-500 to-blue-400 text-white shadow-lg scale-105" : "text-blue-200 hover:text-white hover:bg-blue-500/20"}
-                `}
-                onClick={() => handleEditStep(i + 1)}
-                disabled={step < i + 1 && step !== 3}
-              >
-                <span className="text-xl">{s.icon}</span> {s.label}
-              </button>
-              {i < steps.length - 1 && <FaChevronRight className="text-blue-300 mx-1" />}
-            </div>
-          ))}
+      const data = await res.json();
+      if (data.success) {
+      setSuccessMessage("Scenario added successfully!");
+      setScenario({
+        title: "",
+        category: "",
+          difficulty: "Medium",
+        time_estimate: "",
+          questions_count: "",
+          points: "",
+        description: "",
+          short_description: "",
+          tags: [],
+        is_featured: false,
+        is_active: true,
+          file_url: ""
+        });
+        fetchScenarios(); // Refresh scenarios
+      setTimeout(() => setSuccessMessage(""), 3000);
+      } else {
+        setErrorMessage(data.message || "Failed to add scenario");
+      }
+    } catch (error) {
+      console.error("Error adding scenario:", error);
+      setErrorMessage("An error occurred while adding the scenario");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Question handlers
+  const handleQuestionChange = (field, value) => {
+    setQuestion(prev => ({ ...prev, [field]: value }));
+  };
+
+
+
+  const handleAddQuestion = async () => {
+    if (!question.scenario_id || !question.question_text || !question.correct_answer || !question.points) {
+      setErrorMessage("Please fill in all required fields for question");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const submitData = {
+        ...question,
+        points: parseInt(question.points),
+        question_order: question.question_order ? parseInt(question.question_order) : 0
+      };
+
+      const res = await fetch("http://localhost:5000/api/questions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: 'include',
+        body: JSON.stringify(submitData)
+      });
+
+      const data = await res.json();
+      if (data.success) {
+      setSuccessMessage("Question added successfully!");
+      setQuestion({
+        scenario_id: "",
+        question_text: "",
+        correct_answer: "",
+        points: "10",
+        explanation: "",
+        question_order: "0"
+      });
+      setTimeout(() => setSuccessMessage(""), 3000);
+      } else {
+        setErrorMessage(data.message || "Failed to add question");
+      }
+    } catch (error) {
+      console.error("Error adding question:", error);
+      setErrorMessage("An error occurred while adding the question");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const clearMessages = () => {
+    setSuccessMessage("");
+    setErrorMessage("");
+  };
+
+  // Show error if component failed to load
+  if (componentError) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
+          <h2 className="text-xl font-bold text-red-600 mb-4">Component Error</h2>
+          <p className="text-gray-700 mb-4">{componentError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+          >
+            Reload Page
+          </button>
         </div>
       </div>
+    );
+  }
 
-      {/* Main Card */}
-      <form
-        onSubmit={step === 3 ? handleSave : handleNextStep}
-        className="w-full max-w-4xl bg-white/20 backdrop-blur-2xl rounded-3xl shadow-2xl border border-white/10 p-6 md:p-10 flex flex-col gap-8 animate-fade-in"
-        style={{ minHeight: 500 }}
-      >
-        {/* Step 1: Details */}
-        {step === 1 && (
-          <>
-            <div className="flex flex-col md:flex-row gap-8 items-start">
-              <div className="flex-1 flex flex-col gap-6">
-                <div className="relative">
-                  <label className="absolute left-4 top-[-12px] bg-white/80 px-2 text-blue-800 text-xs font-bold rounded shadow">Title</label>
-                  <input
-                    className="w-full px-4 py-3 rounded-xl bg-white border border-blue-300 text-blue-900 placeholder:text-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-blue-50 font-semibold text-lg shadow"
-                    placeholder="Practice Set Title"
-                    name="title"
-                    value={meta.title}
-                    onChange={handleMetaChange}
-                    required
-                  />
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      <div className="p-6 md:p-10">
+        <div className="max-w-7xl mx-auto">
+          {/* Header */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">Practice Content Management</h1>
+                <p className="text-gray-600">Add and manage practice categories, scenarios, and questions</p>
+              </div>
+              <button
+                onClick={() => navigate("/admin/practice")}
+                className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 transition"
+              >
+                <FaTimes /> Back to Practice Admin
+              </button>
+            </div>
+
+            {/* Success/Error Messages */}
+            {successMessage && (
+              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FaCheckCircle className="text-green-500" />
+                  {successMessage}
                 </div>
-                <div className="relative">
-                  <label className="absolute left-4 top-[-12px] bg-white/80 px-2 text-blue-800 text-xs font-bold rounded shadow">Author</label>
-                  <input
-                    className="w-full px-4 py-3 rounded-xl bg-white border border-blue-300 text-blue-900 placeholder:text-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-blue-50 font-semibold text-lg shadow"
-                    placeholder="Author Name"
-                    name="author"
-                    value={meta.author}
-                    onChange={handleMetaChange}
-                    required
-                  />
+                <button onClick={clearMessages} className="text-green-500 hover:text-green-700">
+                  <FaTimes />
+                </button>
+              </div>
+            )}
+
+            {errorMessage && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FaTimes className="text-red-500" />
+                  {errorMessage}
                 </div>
-                <div className="relative">
-                  <label className="absolute left-4 top-[-12px] bg-white/80 px-2 text-blue-800 text-xs font-bold rounded shadow">Category</label>
+                <button onClick={clearMessages} className="text-red-500 hover:text-red-700">
+                  <FaTimes />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Tabs */}
+          <div className="flex border-b border-gray-200 mb-8">
+            <button
+              className={`py-3 px-6 font-medium text-sm border-b-2 transition-colors ${
+                activeTab === "category" 
+                  ? "border-blue-500 text-blue-600" 
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+              onClick={() => setActiveTab("category")}
+            >
+              <BiCategory className="inline mr-2" />
+              Add Category
+            </button>
+            <button
+              className={`py-3 px-6 font-medium text-sm border-b-2 transition-colors ${
+                activeTab === "scenario" 
+                  ? "border-blue-500 text-blue-600" 
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+              onClick={() => setActiveTab("scenario")}
+            >
+              <BiBrain className="inline mr-2" />
+              Add Scenario
+            </button>
+            <button
+              className={`py-3 px-6 font-medium text-sm border-b-2 transition-colors ${
+                activeTab === "question" 
+                  ? "border-blue-500 text-blue-600" 
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+              onClick={() => setActiveTab("question")}
+            >
+              <BiCode className="inline mr-2" />
+              Add Question
+            </button>
+          </div>
+
+          {/* Tab Content */}
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
+            {activeTab === "category" && (
+              <div className="p-8">
+                <h2 className="text-2xl font-bold mb-6 text-gray-800 flex items-center gap-3">
+                  <BiCategory className="text-blue-500" />
+                  Add Practice Category
+                </h2>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Key Name <span className="text-red-500">*</span>
+                    </label>
+          <input
+            type="text"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+            placeholder="e.g., python-basics"
+            value={category.key_name}
+                      onChange={(e) => handleCategoryChange("key_name", e.target.value)}
+          />
+                    <p className="text-sm text-gray-500 mt-1">Unique identifier for the category</p>
+        </div>
+                  
+        <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Display Label <span className="text-red-500">*</span>
+                    </label>
+          <input
+            type="text"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+            placeholder="e.g., Python Basics"
+            value={category.label}
+                      onChange={(e) => handleCategoryChange("label", e.target.value)}
+          />
+                    <p className="text-sm text-gray-500 mt-1">User-friendly display name</p>
+        </div>
+      </div>
+      
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+        <textarea
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+          placeholder="Describe this category..."
+          rows="3"
+          value={category.description}
+                    onChange={(e) => handleCategoryChange("description", e.target.value)}
+        ></textarea>
+      </div>
+      
+                <div className="mb-8">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Color Gradient</label>
                   <select
-                    className="w-full px-4 py-3 rounded-xl bg-white border border-blue-300 text-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-blue-50 font-semibold text-lg shadow"
-                    name="category"
-                    value={meta.category}
-                    onChange={handleMetaChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+            value={category.color_gradient}
+                    onChange={(e) => handleCategoryChange("color_gradient", e.target.value)}
                   >
-                    {categories.map(cat => (
-                      <option key={cat.key} value={cat.key}>{cat.label}</option>
-                    ))}
+                    <option value="from-blue-500 to-cyan-500">Blue to Cyan</option>
+                    <option value="from-purple-500 to-pink-500">Purple to Pink</option>
+                    <option value="from-green-500 to-emerald-500">Green to Emerald</option>
+                    <option value="from-orange-500 to-red-500">Orange to Red</option>
+                    <option value="from-indigo-500 to-purple-500">Indigo to Purple</option>
+                    <option value="from-teal-500 to-cyan-500">Teal to Cyan</option>
                   </select>
-                </div>
-                <div className="relative">
-                  <label className="absolute left-4 top-[-12px] bg-white/80 px-2 text-blue-800 text-xs font-bold rounded shadow">Description</label>
-                  <textarea
-                    className="w-full px-4 py-3 rounded-xl bg-white border border-blue-300 text-blue-900 placeholder:text-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-blue-50 font-semibold text-base shadow min-h-[80px]"
-                    placeholder="Short description of this practice set (supports HTML)"
-                    name="description"
-                    value={meta.description}
-                    onChange={handleMetaChange}
-                  />
-                </div>
-                {/* Number of Questions field only in step 1 */}
-                <div className="relative w-48">
-                  <label className="absolute left-4 top-[-12px] bg-white/80 px-2 text-blue-800 text-xs font-bold rounded shadow">Number of Questions</label>
-                  <input
-                    className="w-full px-4 py-3 rounded-xl bg-white border border-blue-300 text-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-blue-50 font-semibold text-lg shadow"
-                    type="number"
-                    min={1}
-                    max={50}
-                    name="numQuestions"
-                    value={meta.numQuestions}
-                    onChange={e => {
-                      const val = Math.max(1, Number(e.target.value));
-                      setMeta(m => ({ ...m, numQuestions: val }));
-                      setQuestions(qs => {
-                        if (val > qs.length) {
-                          return [
-                            ...qs,
-                            ...Array.from({ length: val - qs.length }, () => ({ text: "", options: ["", "", "", ""], correct: 0, solution: "", resources: [""] })),
-                          ];
-                        } else if (val < qs.length) {
-                          return qs.slice(0, val);
-                        }
-                        return qs;
-                      });
-                    }}
-                    required
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-end mt-6">
-              <button type="submit" className="bg-gradient-to-r from-blue-500 to-blue-400 hover:from-blue-600 hover:to-blue-500 text-white font-bold px-8 py-3 rounded-xl shadow-lg transition-all text-lg flex items-center gap-2">
-                Next <FaChevronRight />
-              </button>
-            </div>
-          </>
-        )}
+      </div>
+      
+      <button
+        onClick={handleAddCategory}
+                  disabled={loading}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-8 py-3 rounded-lg font-semibold shadow-lg transition flex items-center gap-2"
+      >
+                  {loading ? (
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  ) : (
+                    <FaPlus />
+                  )}
+        Add Category
+      </button>
+    </div>
+            )}
 
-        {/* Step 2: Questions */}
-        {step === 2 && (
-          <>
-            <div className="flex flex-col gap-8">
-              <div className="flex flex-col gap-8">
-                {questions.map((q, idx) => (
-                  <div
-                    key={idx}
-                    ref={idx === questions.length - 1 ? lastQuestionRef : null}
-                    className="bg-white rounded-2xl p-6 shadow-xl border border-blue-200/30 relative animate-fade-in"
-                  >
-                    <div className="absolute -top-4 left-4 bg-gradient-to-r from-blue-500 to-blue-400 text-white font-bold px-4 py-1 rounded-full shadow-lg text-base flex items-center gap-2">
-                      Q{idx + 1}
+            {activeTab === "scenario" && (
+              <div className="p-8">
+                <h2 className="text-2xl font-bold mb-6 text-gray-800 flex items-center gap-3">
+                  <BiBrain className="text-purple-500" />
+                  Add Practice Scenario
+                </h2>
+                
+                {/* Basic Information */}
+                <div className="bg-gray-50 rounded-xl p-6 mb-6">
+                  <h3 className="text-lg font-semibold mb-4 text-gray-800">Basic Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Title <span className="text-red-500">*</span>
+                      </label>
+        <input
+          type="text"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                        placeholder="Enter scenario title"
+          value={scenario.title}
+                        onChange={(e) => handleScenarioChange("title", e.target.value)}
+        />
+      </div>
+      
+      <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Category <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+    value={scenario.category}
+                        onChange={(e) => handleScenarioChange("category", e.target.value)}
+                      >
+                        <option value="">Select Category</option>
+                        {categories.map((cat) => (
+                          <option key={cat.key_name} value={cat.key_name}>
+                            {cat.label}
+                          </option>
+                        ))}
+                      </select>
                     </div>
-                    <div className="flex flex-col md:flex-row gap-6">
-                      <div className="flex-1 flex flex-col gap-4">
-                        <textarea
-                          className="w-full px-4 py-3 rounded-xl bg-blue-50 border border-blue-300 text-blue-900 placeholder:text-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-blue-100 font-semibold text-base shadow min-h-[60px]"
-                          placeholder="Question Description (supports HTML)"
-                          value={q.text}
-                          onChange={e => handleQuestionChange(idx, "text", e.target.value)}
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Difficulty <span className="text-red-500">*</span>
+                      </label>
+          <select
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+            value={scenario.difficulty}
+                        onChange={(e) => handleScenarioChange("difficulty", e.target.value)}
+          >
+            <option value="Easy">Easy</option>
+            <option value="Medium">Medium</option>
+            <option value="Hard">Hard</option>
+          </select>
+      </div>
+      
+        <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Points <span className="text-red-500">*</span>
+                      </label>
+          <input
+            type="number"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                        placeholder="Enter points value"
+                        min="1"
+                        value={scenario.points}
+                        onChange={(e) => handleScenarioChange("points", e.target.value)}
+                      />
+      </div>
+      
+        <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Time Estimate (minutes)
+                      </label>
+          <input
+            type="number"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                        placeholder="Estimated completion time"
+                        min="1"
+                        value={scenario.time_estimate}
+                        onChange={(e) => handleScenarioChange("time_estimate", e.target.value)}
+          />
+        </div>
+                    
+        <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Questions Count
+                      </label>
+          <input
+            type="number"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                        placeholder="Number of questions"
+                        min="1"
+                        value={scenario.questions_count}
+                        onChange={(e) => handleScenarioChange("questions_count", e.target.value)}
+                      />
+                    </div>
+        </div>
+      </div>
+      
+                {/* Description */}
+                <div className="bg-gray-50 rounded-xl p-6 mb-6">
+                  <h3 className="text-lg font-semibold mb-4 text-gray-800">Description</h3>
+                  <div className="space-y-4">
+        <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Short Description</label>
+          <input
+                        type="text"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                        placeholder="Brief description (displayed in lists)"
+                        maxLength="200"
+                        value={scenario.short_description}
+                        onChange={(e) => handleScenarioChange("short_description", e.target.value)}
+          />
+        </div>
+        <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Full Description</label>
+        <textarea
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                        placeholder="Detailed description of the scenario"
+          rows="4"
+          value={scenario.description}
+                        onChange={(e) => handleScenarioChange("description", e.target.value)}
+        ></textarea>
+                    </div>
+                  </div>
+      </div>
+      
+                {/* Additional Settings */}
+                <div className="bg-gray-50 rounded-xl p-6 mb-6">
+                  <h3 className="text-lg font-semibold mb-4 text-gray-800">Additional Settings</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">File URL</label>
+        <input
+                        type="url"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                        placeholder="Optional file attachment URL"
+                        value={scenario.file_url}
+                        onChange={(e) => handleScenarioChange("file_url", e.target.value)}
+        />
+      </div>
+      
+                    <div className="space-y-3">
+        <label className="flex items-center">
+          <input
+            type="checkbox"
+                          className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          checked={scenario.is_active}
+                          onChange={(e) => handleScenarioChange("is_active", e.target.checked)}
                         />
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {q.options.map((opt, optIdx) => (
-                            <div key={optIdx} className="relative">
-                              <span className="absolute left-3 top-2 text-blue-400 font-bold">{String.fromCharCode(65 + optIdx)}</span>
-                              <textarea
-                                className="pl-8 pr-2 py-2 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 placeholder:text-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-blue-100 font-semibold text-base shadow min-h-[40px] w-full"
-                                placeholder={`Option ${String.fromCharCode(65 + optIdx)}`}
-                                value={opt}
-                                onChange={e => handleOptionChange(idx, optIdx, e.target.value)}
-                              />
-                            </div>
-                          ))}
-                        </div>
-                        <div className="flex flex-wrap gap-4 items-center mt-2">
-                          <span className="font-semibold text-blue-700">Correct Answer:</span>
-                          {[0, 1, 2, 3].map(optIdx => (
-                            <label key={optIdx} className="flex items-center gap-1 cursor-pointer">
-                              <input
-                                type="radio"
-                                name={`correct-${idx}`}
-                                checked={q.correct === optIdx}
-                                onChange={() => handleCorrectChange(idx, optIdx)}
-                                className="accent-blue-500 w-5 h-5"
-                              />
-                              <span className="font-bold text-blue-700">{String.fromCharCode(65 + optIdx)}</span>
-                            </label>
-                          ))}
-                        </div>
-                        <textarea
-                          className="w-full px-4 py-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 placeholder:text-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-blue-100 font-semibold text-base shadow min-h-[40px]"
-                          placeholder="Solution (explanation or correct answer)"
-                          value={q.solution}
-                          onChange={e => handleQuestionChange(idx, "solution", e.target.value)}
+                        <span className="text-sm font-medium text-gray-700">Active (visible to users)</span>
+        </label>
+                      
+        <label className="flex items-center">
+          <input
+            type="checkbox"
+                          className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          checked={scenario.is_featured}
+                          onChange={(e) => handleScenarioChange("is_featured", e.target.checked)}
                         />
-                        <div className="flex flex-col gap-2 mt-2">
-                          <span className="font-semibold text-blue-700 mb-1">Resources (optional, links, etc)</span>
-                          {q.resources.map((res, rIdx) => (
-                            <div key={rIdx} className="flex gap-2 items-center mb-1">
-                              <input
-                                className="flex-1 px-4 py-2 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 placeholder:text-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-blue-100 font-semibold text-base shadow"
-                                placeholder={`Resource ${rIdx + 1}`}
-                                value={res}
-                                onChange={e => handleResourceChange(idx, rIdx, e.target.value)}
-                              />
-                              {q.resources.length > 1 && (
-                                <button type="button" className="text-red-500 hover:text-red-700 p-1" onClick={() => handleRemoveResource(idx, rIdx)} title="Remove Resource"><FaTrash /></button>
-                              )}
-                            </div>
-                          ))}
-                          <button type="button" className="bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white font-bold px-4 py-2 rounded-xl shadow flex items-center gap-2 mt-1" onClick={() => handleAddResource(idx)}>
-                            <FaPlus /> Add Resource
-                          </button>
-                        </div>
-                      </div>
-                      <div className="flex flex-col gap-2 items-end justify-between min-w-[60px]">
-                        <button
-                          type="button"
-                          className="bg-gradient-to-r from-green-400 to-blue-400 hover:from-green-500 hover:to-blue-500 text-white font-bold px-4 py-2 rounded-xl shadow flex items-center gap-2 mb-2"
-                          onClick={handleAddQuestion}
-                          title="Add Question"
-                        >
-                          <FaPlus />
-                        </button>
-                        {questions.length > 1 && (
-                          <button
-                            type="button"
-                            className="bg-gradient-to-r from-red-400 to-pink-400 hover:from-red-500 hover:to-pink-500 text-white font-bold px-4 py-2 rounded-xl shadow flex items-center gap-2"
-                            onClick={() => handleRemoveQuestion(idx)}
-                            title="Remove Question"
+                        <span className="text-sm font-medium text-gray-700">Featured (highlighted)</span>
+        </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tags */}
+                <div className="bg-gray-50 rounded-xl p-6 mb-8">
+                  <h3 className="text-lg font-semibold mb-4 text-gray-800">Tags</h3>
+                  <div className="space-y-4">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newTag}
+                        onChange={(e) => setNewTag(e.target.value)}
+                        className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                        placeholder="Add a tag"
+                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
+                      />
+                      <button
+                        type="button"
+                        onClick={addTag}
+                        className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                      >
+                        <FaPlus />
+                      </button>
+                    </div>
+                    
+                    {scenario.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {scenario.tags.map((tag, index) => (
+                          <span
+                            key={index}
+                            className="inline-flex items-center gap-2 px-3 py-2 bg-blue-100 text-blue-800 rounded-full text-sm"
                           >
-                            <FaMinus />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="flex flex-col gap-4 mt-6">
-                <label className="font-semibold text-blue-700">Global Resources (optional, shown after all questions)</label>
-                <textarea
-                  className="w-full px-4 py-2 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 placeholder:text-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-blue-100 font-semibold text-base shadow min-h-[40px]"
-                  placeholder="Global Resources (optional, links, etc)"
-                  value={resources}
-                  onChange={e => setResources(e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="flex justify-between mt-8">
-              <button type="button" className="bg-gradient-to-r from-gray-200 to-blue-200 text-blue-900 font-bold px-8 py-3 rounded-xl shadow transition-all text-lg flex items-center gap-2" onClick={handleBack}>
-                <FaChevronLeft /> Back
-              </button>
-              <button type="submit" className="bg-gradient-to-r from-blue-500 to-blue-400 hover:from-blue-600 hover:to-blue-500 text-white font-bold px-8 py-3 rounded-xl shadow-lg transition-all text-lg flex items-center gap-2">
-                Next <FaChevronRight />
-              </button>
-            </div>
-          </>
-        )}
-
-        {/* Step 3: Review & Save */}
-        {step === 3 && (
-          <>
-            <div className="flex flex-col gap-8">
-              <div className="bg-white/30 rounded-2xl p-8 shadow-xl border border-blue-200/30 animate-fade-in">
-                <div className="flex items-center gap-3 mb-4">
-                  <FaBookOpen className="text-blue-400 text-2xl" />
-                  <h2 className="text-2xl font-bold text-blue-900">Review & Save</h2>
-                </div>
-                <div className="grid md:grid-cols-2 gap-8 mb-6">
-                  <div>
-                    <div className="font-bold text-blue-700 mb-1">Title</div>
-                    <div className="bg-white/60 rounded px-4 py-2 text-blue-900 font-semibold shadow mb-2">{meta.title}</div>
-                    <div className="font-bold text-blue-700 mb-1">Author</div>
-                    <div className="bg-white/60 rounded px-4 py-2 text-blue-900 font-semibold shadow mb-2">{meta.author}</div>
-                    <div className="font-bold text-blue-700 mb-1">Category</div>
-                    <div className="bg-white/60 rounded px-4 py-2 text-blue-900 font-semibold shadow mb-2">{categories.find(c => c.key === meta.category)?.label}</div>
-                  </div>
-                  <div>
-                    <div className="font-bold text-blue-700 mb-1">Description</div>
-                    <div className="bg-white/60 rounded px-4 py-2 text-blue-900 shadow prose max-w-none" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(meta.description) }} />
-                  </div>
-                </div>
-                <div className="font-bold text-blue-700 mb-2">Questions</div>
-                <div className="flex flex-col gap-6">
-                  {questions.map((q, idx) => (
-                    <div key={idx} className="bg-white/50 rounded-xl p-4 border border-blue-200/40 shadow flex flex-col gap-2">
-                      <div className="flex items-center gap-2 font-bold text-blue-800 mb-1">Q{idx + 1}:</div>
-                      <div className="prose max-w-none text-blue-900" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(q.text) }} />
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
-                        {q.options.map((opt, optIdx) => (
-                          <div key={optIdx} className={`rounded px-3 py-2 text-blue-900 font-semibold flex items-center gap-2 ${q.correct === optIdx ? "bg-green-100 border border-green-400" : "bg-blue-100/60"}`}>
-                            <span className={`font-bold ${q.correct === optIdx ? "text-green-700" : "text-blue-500"}`}>{String.fromCharCode(65 + optIdx)}.</span> <span>{opt}</span>
-                          </div>
+                            {tag}
+                            <button
+                              type="button"
+                              onClick={() => removeTag(tag)}
+                              className="text-blue-600 hover:text-blue-800"
+                            >
+                              <FaTrash className="w-3 h-3" />
+                            </button>
+                          </span>
                         ))}
                       </div>
-                      <div className="mt-2"><span className="font-bold text-green-700">Solution:</span> <span className="text-blue-900">{q.solution}</span></div>
-                      {q.resources && q.resources.length > 0 && (
-                        <div className="mt-1 text-blue-700 text-sm flex flex-col gap-1">
-                          <span className="font-bold">Resources:</span>
-                          {q.resources.map((res, rIdx) => res && <span key={rIdx} className="ml-2">{res}</span>)}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    )}
+                  </div>
+      </div>
+      
+      <button
+        onClick={handleAddScenario}
+                  disabled={loading}
+                  className="bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white px-8 py-3 rounded-lg font-semibold shadow-lg transition flex items-center gap-2"
+      >
+                  {loading ? (
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  ) : (
+                    <FaPlus />
+                  )}
+        Add Scenario
+      </button>
+    </div>
+            )}
+
+            {activeTab === "question" && (
+              <div className="p-8">
+                <h2 className="text-2xl font-bold mb-6 text-gray-800 flex items-center gap-3">
+                  <BiCode className="text-green-500" />
+                  Add Practice Question
+                </h2>
+                
+                {/* Basic Information */}
+                <div className="bg-gray-50 rounded-xl p-6 mb-6">
+                  <h3 className="text-lg font-semibold mb-4 text-gray-800">Basic Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Scenario <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+    value={question.scenario_id}
+                        onChange={(e) => handleQuestionChange("scenario_id", e.target.value)}
+                      >
+                        <option value="">Select a scenario</option>
+    {scenarios.map((s) => (
+      <option key={s.id} value={s.id}>
+        {s.title}
+      </option>
+    ))}
+          </select>
+      </div>
+      
+        <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Question Order <span className="text-red-500">*</span>
+                      </label>
+          <input
+            type="number"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                        placeholder="Order of this question"
+                        min="0"
+                        value={question.question_order}
+                        onChange={(e) => handleQuestionChange("question_order", e.target.value)}
+          />
+        </div>
+                    
+        <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Points <span className="text-red-500">*</span>
+                      </label>
+          <input
+            type="number"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                        placeholder="Points for this question"
+                        min="1"
+                        value={question.points}
+                        onChange={(e) => handleQuestionChange("points", e.target.value)}
+          />
+        </div>
+                  </div>
                 </div>
-                {resources && <div className="mt-6 text-blue-700"><span className="font-bold">Global Resources:</span> {resources}</div>}
-              </div>
-            </div>
-            <div className="flex justify-between mt-8">
-              <button type="button" className="bg-gradient-to-r from-gray-200 to-blue-200 text-blue-900 font-bold px-8 py-3 rounded-xl shadow transition-all text-lg flex items-center gap-2" onClick={handleBack}>
-                <FaChevronLeft /> Back
-              </button>
-              <button type="submit" className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-bold px-10 py-4 rounded-2xl shadow-2xl transition-all text-xl flex items-center gap-3 animate-pulse">
-                <FaRegSave className="text-2xl" /> Save
-              </button>
-            </div>
-          </>
-        )}
-      </form>
+
+                {/* Question Content */}
+                <div className="bg-gray-50 rounded-xl p-6 mb-6">
+                  <h3 className="text-lg font-semibold mb-4 text-gray-800">Question Content</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Question Text <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                        placeholder="Enter the question..."
+                        rows="4"
+                        value={question.question_text}
+                        onChange={(e) => handleQuestionChange("question_text", e.target.value)}
+                      ></textarea>
+      </div>
+      
+
+      
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Correct Answer <span className="text-red-500">*</span>
+                      </label>
+        <input
+          type="text"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+          placeholder="Enter correct answer"
+          value={question.correct_answer}
+                        onChange={(e) => handleQuestionChange("correct_answer", e.target.value)}
+        />
+      </div>
+      
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Explanation</label>
+        <textarea
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+          placeholder="Explain why this is the correct answer..."
+          rows="3"
+          value={question.explanation}
+                        onChange={(e) => handleQuestionChange("explanation", e.target.value)}
+        ></textarea>
+      </div>
+                  </div>
+          </div>
+          
+                
+      
+      <button
+        onClick={handleAddQuestion}
+                  disabled={loading}
+                  className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-8 py-3 rounded-lg font-semibold shadow-lg transition flex items-center gap-2"
+      >
+                  {loading ? (
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  ) : (
+                    <FaPlus />
+                  )}
+        Add Question
+      </button>
+    </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
-} 
+};
+
+export default PracticeEditorPage;

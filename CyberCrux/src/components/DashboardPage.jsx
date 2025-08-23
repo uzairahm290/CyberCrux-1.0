@@ -7,85 +7,317 @@ import {
 import { FaFire , FaRegClock,  } from 'react-icons/fa';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import Footer from './Footer';
+import FloatingChatWidget from './FloatingChatWidget';
 import { useAuth } from '../AuthContext';
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const [currentStreak, setCurrentStreak] = useState(7);
-  const [totalPoints, setTotalPoints] = useState(2840);
-  const [level, setLevel] = useState(12);
-  const [rank, setRank] = useState(156);
-  const [completedScenarios, setCompletedScenarios] = useState(47);
-  const [aiInterviews, setAiInterviews] = useState(8);
-  const [labsCompleted, setLabsCompleted] = useState(5);
+  const [currentStreak, setCurrentStreak] = useState(0);
+  const [totalPoints, setTotalPoints] = useState(0);
+  const [level, setLevel] = useState(1);
+  const [rank, setRank] = useState(0);
+  const [completedScenarios, setCompletedScenarios] = useState(0);
+  const [aiInterviews, setAiInterviews] = useState(0);
+  const [labsCompleted, setLabsCompleted] = useState(0);
+  const [streakData, setStreakData] = useState(null);
+  const [weeklyProgress, setWeeklyProgress] = useState([]);
+  const [recentActivities, setRecentActivities] = useState([]);
+  const [recentBlogs, setRecentBlogs] = useState([]);
+  const [upcomingChallenges, setUpcomingChallenges] = useState([]);
+  const [skillRadar, setSkillRadar] = useState([
+    { skill: 'Network Security', value: 0 },
+    { skill: 'Web Security', value: 0 },
+    { skill: 'Malware Analysis', value: 0 },
+    { skill: 'Incident Response', value: 0 },
+    { skill: 'Cryptography', value: 0 },
+    { skill: 'Forensics', value: 0 },
+  ]);
 
-  // Sample data for charts
-  const weeklyProgress = [
-    { day: 'Mon', scenarios: 4, interviews: 1, labs: 0 },
-    { day: 'Tue', scenarios: 6, interviews: 2, labs: 1 },
-    { day: 'Wed', scenarios: 3, interviews: 0, labs: 0 },
-    { day: 'Thu', scenarios: 8, interviews: 1, labs: 1 },
-    { day: 'Fri', scenarios: 5, interviews: 2, labs: 0 },
-    { day: 'Sat', scenarios: 7, interviews: 1, labs: 1 },
-    { day: 'Sun', scenarios: 4, interviews: 0, labs: 0 },
-  ];
+  // Fetch streak data when component mounts
+  const fetchStreakData = async () => {
+    if (!user?.id) return;
+    
+    try {
+      const response = await fetch(`http://localhost:5000/api/streak/user-streak/${user.id}`);
+      const data = await response.json();
+      setStreakData(data.streak);
+      setCurrentStreak(data.streak?.current_streak || 0);
+      // Don't set totalPoints here - let fetchUserStats handle it
+    } catch (error) {
+      console.error('Error fetching streak:', error);
+    }
+  };
 
-  const skillRadar = [
-    { skill: 'Network Security', value: 85 },
-    { skill: 'Web Security', value: 80 },
-    { skill: 'Malware Analysis', value: 68 },
-    { skill: 'Incident Response', value: 50 },
-    { skill: 'Cryptography', value: 36 },
-    { skill: 'Forensics', value: 79 },
-  ];
+  // Fetch user practice statistics
+  const fetchUserStats = async () => {
+    if (!user?.id) return;
+    
+    try {
+      const response = await fetch('http://localhost:5000/api/practice/stats', {
+        credentials: 'include'
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        const stats = data.data.overview;
+        setCompletedScenarios(stats.completed_scenarios || 0);
+        // Set total points from practice stats (this is the authoritative source)
+        setTotalPoints(stats.total_points_earned || 0);
+        console.log('Setting totalPoints from practice stats:', stats.total_points_earned || 0);
+        setLevel(Math.floor((stats.total_points_earned || 0) / 100) + 1);
+        setRank(stats.rank || 0);
+        
+        // Calculate skill radar data from category performance
+        if (data.data.categories) {
+          const skillRadarData = data.data.categories.map(category => {
+            const avgScore = category.avg_score || 0;
+            const completed = category.completed || 0;
+            const total = category.total || 1;
+            
+            // Calculate skill value based on average score and completion rate
+            const completionRate = (completed / total) * 100;
+            const skillValue = Math.round((avgScore + completionRate) / 2);
+            
+            return {
+              skill: category.category.charAt(0).toUpperCase() + category.category.slice(1),
+              value: Math.min(100, Math.max(0, skillValue)) // Ensure value is between 0-100
+            };
+          });
+          
+          // Add default skills if no categories exist
+          if (skillRadarData.length === 0) {
+            setSkillRadar([
+              { skill: 'Network Security', value: 0 },
+              { skill: 'Web Security', value: 0 },
+              { skill: 'Malware Analysis', value: 0 },
+              { skill: 'Incident Response', value: 0 },
+              { skill: 'Cryptography', value: 0 },
+              { skill: 'Forensics', value: 0 },
+            ]);
+          } else {
+            setSkillRadar(skillRadarData);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching user stats:', error);
+    }
+  };
 
-  const recentActivities = [
-    { type: 'scenario', title: 'Phishing Attack Response', time: '2 hours ago', points: 50, icon: <BiBrain className="w-5 h-5 text-blue-400" /> },
-    { type: 'interview', title: 'SOC Analyst Mock Interview', time: '4 hours ago', points: 75, icon: <BiMicrophone className="w-5 h-5 text-purple-400" /> },
-    { type: 'lab', title: 'Network Traffic Analysis Lab', time: '1 day ago', points: 100, icon: <BiLaptop className="w-5 h-5 text-green-400" /> },
-    { type: 'scenario', title: 'Ransomware Incident Handling', time: '2 days ago', points: 60, icon: <BiBrain className="w-5 h-5 text-blue-400" /> },
-  ];
+  // Fetch weekly progress for scenarios
+  const fetchWeeklyProgress = async () => {
+    if (!user?.id) return;
+    
+    try {
+      const response = await fetch('http://localhost:5000/api/practice/progress', {
+        credentials: 'include'
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        // Calculate weekly progress for scenarios
+        const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const today = new Date();
+        const weekProgress = weekDays.map((day, index) => {
+          const targetDate = new Date(today);
+          targetDate.setDate(today.getDate() - (today.getDay() - index));
+          const dateStr = targetDate.toISOString().split('T')[0];
+          
+          const dayScenarios = data.data.filter(item => {
+            if (!item.completed_at) return false;
+            const itemDate = new Date(item.completed_at).toISOString().split('T')[0];
+            return itemDate === dateStr;
+          }).length;
+          
+          return {
+            day,
+            scenarios: dayScenarios,
+            interviews: 0, // Remove interviews from graph
+            labs: 0 // Remove labs from graph
+          };
+        });
+        
+        setWeeklyProgress(weekProgress);
+      }
+    } catch (error) {
+      console.error('Error fetching weekly progress:', error);
+    }
+  };
 
-  const upcomingChallenges = [
-    { title: 'Advanced Penetration Testing', difficulty: 'Hard', reward: 200, deadline: '3 days', icon: <BiTargetLock className="w-6 h-6 text-red-400" /> },
-    { title: 'Security Architecture Design', difficulty: 'Medium', reward: 150, deadline: '5 days', icon: <BiMap className="w-6 h-6 text-blue-400" /> },
-    { title: 'Incident Response Simulation', difficulty: 'Hard', reward: 250, deadline: '1 week', icon: <BiWrench className="w-6 h-6 text-purple-400" /> },
-  ];
+  // Fetch recent activities
+  const fetchRecentActivities = async () => {
+    if (!user?.id) return;
+    
+    try {
+      const response = await fetch('http://localhost:5000/api/practice/progress', {
+        credentials: 'include'
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        const activities = data.data
+          .filter(item => item.is_completed)
+          .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at))
+          .slice(0, 4)
+          .map(item => {
+            const timeAgo = getTimeAgo(new Date(item.completed_at));
+            return {
+              type: 'scenario',
+              title: `Completed ${item.scenario_name || 'Practice Scenario'}`,
+              time: timeAgo,
+              points: item.score || 0,
+              icon: <BiBrain className="w-5 h-5 text-blue-400" />
+            };
+          });
+        
+        setRecentActivities(activities);
+      }
+    } catch (error) {
+      console.error('Error fetching recent activities:', error);
+    }
+  };
 
-  const recentBlogs = [
-    { 
-      title: 'Zero-Day Vulnerabilities: Understanding the Threat Landscape', 
-      author: 'Sarah Chen', 
-      time: '2 hours ago', 
-      readTime: '5 min read',
-      category: 'Threat Intelligence',
-      icon: <BiNews className="w-5 h-5 text-blue-400" />
-    },
-    { 
-      title: 'Building a Home Security Lab: A Complete Guide', 
-      author: 'Mike Rodriguez', 
-      time: '1 day ago', 
-      readTime: '8 min read',
-      category: 'Learning',
-      icon: <BiNews className="w-5 h-5 text-green-400" />
-    },
-    { 
-      title: 'The Future of AI in Cybersecurity Defense', 
-      author: 'Dr. Emily Watson', 
-      time: '3 days ago', 
-      readTime: '6 min read',
-      category: 'AI & ML',
-      icon: <BiNews className="w-5 h-5 text-purple-400" />
-    },
-    { 
-      title: 'Incident Response Best Practices for Small Teams', 
-      author: 'Alex Thompson', 
-      time: '1 week ago', 
-      readTime: '7 min read',
-      category: 'Incident Response',
-      icon: <BiNews className="w-5 h-5 text-orange-400" />
-    },
-  ];
+  // Fetch recent blogs
+  const fetchRecentBlogs = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/blogs');
+      const data = await response.json();
+      
+      if (Array.isArray(data)) {
+        const blogs = data
+          .sort((a, b) => {
+            // Handle different date field names and formats
+            const dateA = a.created_at || a.date || a.published_at;
+            const dateB = b.created_at || b.date || b.published_at;
+            
+            if (!dateA || !dateB) return 0;
+            
+            const dateObjA = new Date(dateA);
+            const dateObjB = new Date(dateB);
+            
+            // Check if dates are valid
+            if (isNaN(dateObjA.getTime()) || isNaN(dateObjB.getTime())) return 0;
+            
+            return dateObjB - dateObjA;
+          })
+          .slice(0, 4)
+          .map(blog => {
+            // Handle different date field names
+            const blogDate = blog.created_at || blog.date || blog.published_at;
+            let timeAgo = 'Recently';
+            
+            if (blogDate) {
+              try {
+                const date = new Date(blogDate);
+                if (!isNaN(date.getTime())) {
+                  timeAgo = getTimeAgo(date);
+                }
+              } catch (error) {
+                console.error('Error parsing blog date:', error);
+              }
+            }
+            
+            return {
+              title: blog.title || 'Untitled Blog',
+              author: blog.author || 'CyberCrux Team',
+              time: timeAgo,
+              readTime: blog.read_time || `${Math.ceil((blog.content?.length || 500) / 200)} min read`,
+              category: blog.category || 'General',
+              icon: <BiNews className="w-5 h-5 text-blue-400" />
+            };
+          });
+        
+        setRecentBlogs(blogs);
+      }
+    } catch (error) {
+      console.error('Error fetching recent blogs:', error);
+    }
+  };
+
+  // Fetch upcoming challenges
+  const fetchUpcomingChallenges = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/practice/scenarios');
+      const data = await response.json();
+      
+      if (data.success) {
+        const challenges = data.data
+          .filter(scenario => !scenario.is_completed)
+          .sort((a, b) => (b.points || 0) - (a.points || 0))
+          .slice(0, 3)
+          .map(scenario => ({
+            title: scenario.title,
+            difficulty: scenario.difficulty || 'Medium',
+            reward: scenario.points || 100,
+            deadline: 'No deadline',
+            icon: <BiTargetLock className="w-6 h-6 text-red-400" />
+          }));
+        
+        setUpcomingChallenges(challenges);
+      }
+    } catch (error) {
+      console.error('Error fetching upcoming challenges:', error);
+    }
+  };
+
+  // Helper function to calculate time ago
+  const getTimeAgo = (date) => {
+    try {
+      const now = new Date();
+      const diffInMs = now - date;
+      
+      // Check if the date is valid and not in the future
+      if (isNaN(diffInMs) || diffInMs < 0) {
+        return 'Recently';
+      }
+      
+      const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+      const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+      
+      if (diffInHours < 1) return 'Just now';
+      if (diffInHours < 24) return `${diffInHours} hours ago`;
+      if (diffInDays < 7) return `${diffInDays} days ago`;
+      if (diffInDays < 30) return `${Math.floor(diffInDays / 7)} weeks ago`;
+      if (diffInDays < 365) return `${Math.floor(diffInDays / 30)} months ago`;
+      return `${Math.floor(diffInDays / 365)} years ago`;
+    } catch (error) {
+      console.error('Error calculating time ago:', error);
+      return 'Recently';
+    }
+  };
+
+  // Record login when user visits dashboard
+  const recordLogin = async () => {
+    if (!user?.id) return;
+    
+    try {
+      await fetch('http://localhost:5000/api/streak/record-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: user.id })
+      });
+      fetchStreakData(); // Refresh streak data after recording login
+    } catch (error) {
+      console.error('Error recording login:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (user?.id) {
+      recordLogin(); // Record login and fetch streak data
+      fetchStreakData(); // Fetch streak data
+      fetchUserStats(); // Fetch user stats (including total points)
+      fetchWeeklyProgress();
+      fetchRecentActivities();
+      fetchRecentBlogs();
+      fetchUpcomingChallenges();
+    }
+  }, [user?.id]);
+
+  // Debug: Monitor totalPoints changes
+  useEffect(() => {
+    console.log('totalPoints changed to:', totalPoints);
+  }, [totalPoints]);
 
   const quickActions = [
     { title: 'Practice Scenarios', icon: <BiBrain className="w-6 h-6" />, color: 'from-blue-500 to-cyan-500', route: '/practice' },
@@ -165,7 +397,9 @@ export default function DashboardPage() {
               </div>
               <BiTrendingUp className="w-5 h-5 text-green-400" />
             </div>
-            <h3 className="text-2xl font-bold mb-1">#{rank}</h3>
+            <h3 className="text-2xl font-bold mb-1">
+              {totalPoints > 0 ? `#${rank}` : 'Unranked'}
+            </h3>
             <p className="text-gray-300 text-sm">Global Rank</p>
           </div>
         </div>
@@ -183,14 +417,6 @@ export default function DashboardPage() {
                     <div className="w-3 h-3 bg-blue-400 rounded-full"></div>
                     <span>Scenarios</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-purple-400 rounded-full"></div>
-                    <span>Interviews</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-green-400 rounded-full"></div>
-                    <span>Labs</span>
-                  </div>
                 </div>
               </div>
               <div className="h-64">
@@ -207,8 +433,6 @@ export default function DashboardPage() {
                       }} 
                     />
                     <Line type="monotone" dataKey="scenarios" stroke="#60A5FA" strokeWidth={3} />
-                    <Line type="monotone" dataKey="interviews" stroke="#A78BFA" strokeWidth={3} />
-                    <Line type="monotone" dataKey="labs" stroke="#34D399" strokeWidth={3} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -386,6 +610,9 @@ export default function DashboardPage() {
         </div>
       </div>
       <Footer />
+      
+      {/* Floating Chat Widget */}
+      <FloatingChatWidget />
     </div>
   );
 } 

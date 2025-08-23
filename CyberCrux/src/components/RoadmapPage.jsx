@@ -1,188 +1,150 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import DashNav from "./DashNav";
 import Footer from "./Footer";
-import { FaMap, FaRoute, FaFlagCheckered, FaBook, FaLightbulb, FaRocket, FaSearch, FaStar, FaClock, FaUser, FaEye, FaGraduationCap, FaCertificate } from "react-icons/fa";
+import axios from "axios";
+import { useTheme } from "../ThemeContext";
+
+import {
+  FaMap, FaRoute, FaFlagCheckered, FaBook, FaLightbulb, FaSearch, FaStar, FaClock,
+  FaUser, FaEye, FaGraduationCap
+} from "react-icons/fa";
 import { BiCategory, BiChevronRight } from "react-icons/bi";
-import { useTheme } from '../ThemeContext';
-
-// Enhanced roadmaps with more details
-const roadmaps = [
-  {
-    id: 1,
-    title: "SOC Analyst Roadmap",
-    description: "Step-by-step path to become a Security Operations Center Analyst, from basics to advanced monitoring and incident response.",
-    category: "defense",
-    difficulty: "Beginner to Advanced",
-    duration: "6-12 months",
-    author: "Sarah Chen",
-    rating: 4.9,
-    students: 1247,
-    icon: <FaFlagCheckered className="text-blue-400 text-3xl" />,
-    featured: true,
-    skills: ["SIEM", "Incident Response", "Threat Hunting", "Log Analysis"],
-    certifications: ["CompTIA Security+", "SANS GSOC", "CISSP"],
-    modules: 12,
-    estimatedHours: 200,
-  },
-  {
-    id: 2,
-    title: "Penetration Tester Roadmap",
-    description: "Learn the skills and tools needed to become a professional penetration tester with hands-on practice.",
-    category: "offensive",
-    difficulty: "Intermediate to Advanced",
-    duration: "8-15 months",
-    author: "Mike Rodriguez",
-    rating: 4.8,
-    students: 892,
-    icon: <FaRoute className="text-purple-400 text-3xl" />,
-    featured: true,
-    skills: ["Web App Testing", "Network Pentesting", "Social Engineering", "Report Writing"],
-    certifications: ["OSCP", "CEH", "GPEN"],
-    modules: 15,
-    estimatedHours: 300,
-  },
-  {
-    id: 3,
-    title: "Malware Analyst Roadmap",
-    description: "Master malware analysis, reverse engineering, and threat hunting techniques for advanced security roles.",
-    category: "analysis",
-    difficulty: "Advanced",
-    duration: "10-18 months",
-    author: "Dr. Emily Watson",
-    rating: 4.7,
-    students: 567,
-    icon: <FaBook className="text-yellow-300 text-3xl" />,
-    featured: false,
-    skills: ["Static Analysis", "Dynamic Analysis", "Reverse Engineering", "Threat Intelligence"],
-    certifications: ["GREM", "CREA", "CFCE"],
-    modules: 18,
-    estimatedHours: 400,
-  },
-  {
-    id: 4,
-    title: "Cloud Security Roadmap",
-    description: "Explore cloud security fundamentals and advanced topics for AWS, Azure, and GCP environments.",
-    category: "cloud",
-    difficulty: "Intermediate to Advanced",
-    duration: "6-12 months",
-    author: "Alex Thompson",
-    rating: 4.6,
-    students: 734,
-    icon: <FaMap className="text-cyan-400 text-3xl" />,
-    featured: false,
-    skills: ["AWS Security", "Azure Security", "GCP Security", "Cloud Compliance"],
-    certifications: ["AWS Security", "Azure Security", "CCSP"],
-    modules: 14,
-    estimatedHours: 250,
-  },
-  {
-    id: 5,
-    title: "Digital Forensics Roadmap",
-    description: "Learn digital forensics methodologies, evidence collection, and analysis for cyber investigations.",
-    category: "forensics",
-    difficulty: "Intermediate to Advanced",
-    duration: "8-14 months",
-    author: "David Kim",
-    rating: 4.5,
-    students: 445,
-    icon: <FaBook className="text-green-400 text-3xl" />,
-    featured: false,
-    skills: ["Evidence Collection", "Memory Analysis", "File System Analysis", "Network Forensics"],
-    certifications: ["GCFE", "GCFA", "CFCE"],
-    modules: 16,
-    estimatedHours: 280,
-  },
-  {
-    id: 6,
-    title: "Security Architecture Roadmap",
-    description: "Design and implement secure architectures for enterprise environments and applications.",
-    category: "architecture",
-    difficulty: "Advanced",
-    duration: "12-20 months",
-    author: "Lisa Wang",
-    rating: 4.8,
-    students: 298,
-    icon: <FaMap className="text-pink-400 text-3xl" />,
-    featured: true,
-    skills: ["Security Design", "Risk Assessment", "Compliance", "Zero Trust"],
-    certifications: ["CISSP", "SABSA", "TOGAF"],
-    modules: 20,
-    estimatedHours: 350,
-  },
-];
-
-const categories = [
-  { id: 'all', name: 'All Roadmaps', count: roadmaps.length },
-  { id: 'defense', name: 'Defense', count: roadmaps.filter(r => r.category === 'defense').length },
-  { id: 'offensive', name: 'Offensive', count: roadmaps.filter(r => r.category === 'offensive').length },
-  { id: 'analysis', name: 'Analysis', count: roadmaps.filter(r => r.category === 'analysis').length },
-  { id: 'cloud', name: 'Cloud', count: roadmaps.filter(r => r.category === 'cloud').length },
-  { id: 'forensics', name: 'Forensics', count: roadmaps.filter(r => r.category === 'forensics').length },
-  { id: 'architecture', name: 'Architecture', count: roadmaps.filter(r => r.category === 'architecture').length },
-];
-
-const guides = [
-  {
-    title: "How to Choose Your Cybersecurity Path",
-    description: "A comprehensive guide to help you select the right roadmap for your interests, skills, and career goals.",
-    author: "Career Advisor Team",
-    readTime: "8 min read",
-    category: "Career Guidance",
-    link: "#",
-  },
-  {
-    title: "Top Certifications for Each Roadmap",
-    description: "Recommended certifications and resources for every learning path with cost-benefit analysis.",
-    author: "Certification Expert",
-    readTime: "12 min read",
-    category: "Certifications",
-    link: "#",
-  },
-  {
-    title: "Building Your Cybersecurity Portfolio",
-    description: "Learn how to showcase your skills and projects to stand out in the cybersecurity job market.",
-    author: "Portfolio Specialist",
-    readTime: "10 min read",
-    category: "Career Development",
-    link: "#",
-  },
-];
 
 export default function RoadmapPage() {
+  const [roadmaps, setRoadmaps] = useState([]);
+  const [guides, setGuides] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('featured');
   const [viewMode, setViewMode] = useState('grid');
   const [mobileCategoryMenuOpen, setMobileCategoryMenuOpen] = useState(false);
+  const [isLoadingGuides, setIsLoadingGuides] = useState(true);
   const { theme } = useTheme();
 
-  // Filter and sort roadmaps
+  const navigate = useNavigate();
+  const handleViewRoadmap = async (id) => {
+    try {
+      await axios.post(`http://localhost:5000/api/blogs/${id}/view`);
+    } catch (err) {
+      // Optionally log error, but still navigate
+    }
+    navigate(`/roadmap/${id}`);
+  };
+
+  useEffect(() => {
+    const fetchRoadmaps = async () => {
+      try {
+        const res = await axios.get("http://localhost:5000/api/blogs1");
+        const roadmapBlogs = res.data
+          .filter(blog => blog.title.toLowerCase().includes("roadmap")) // Only "roadmap" titles
+          .map((blog, index) => ({
+            id: blog.id || index + 1,
+            title: blog.title,
+            excerpt: blog.excerpt || "No excerpt available",
+            content: blog.content || "No content available",
+            category: blog.category || "general",
+            author: blog.author || "Anonymous",
+            author_avatar: blog.author_avatar,
+            date: blog.date,
+            read_time: blog.read_time || "2-3 hours",
+            tags: blog.tags,
+            featured: blog.featured || false,
+            views: blog.views ?? 90,
+            students: blog.views || 0, // Use actual views count instead of random students
+            icon: <FaMap className="text-blue-400 text-3xl" />,
+            // Hardcoded values for missing fields
+            rating: 4.5, // Hardcoded rating
+            duration: blog.read_time || "2-3 hours", // Use read_time as duration
+            skills: blog.tags ? blog.tags.split(',').map(tag => tag.trim()) : ["Cybersecurity"], // Use tags as skills
+            certifications: [], // Hardcoded empty array
+            modules: 5, // Hardcoded modules count
+            estimatedHours: blog.read_time || "3-4 hours", // Use read_time as estimated hours
+          }));
+        setRoadmaps(roadmapBlogs);
+      } catch (err) {
+        console.error("Failed to fetch roadmaps:", err);
+      }
+    };
+
+    const fetchGuides = async () => {
+      try {
+        setIsLoadingGuides(true);
+        const res = await axios.get("http://localhost:5000/api/blogs");
+        const guideKeywords = [
+          'guide', 'how to', 'tutorial', 'tips', 'best practices', 
+          'career', 'certification', 'portfolio', 'learning', 'resources',
+          'beginner', 'advanced', 'fundamentals', 'strategy', 'planning'
+        ];
+        
+        const guideBlogs = res.data
+          .filter(blog => {
+            const title = blog.title.toLowerCase();
+            const content = (blog.content || '').toLowerCase();
+            const category = (blog.category || '').toLowerCase();
+            
+            // Exclude roadmaps
+            if (title.includes('roadmap')) return false;
+            
+            // Include if title or category contains guide keywords
+            return guideKeywords.some(keyword => 
+              title.includes(keyword) || 
+              category.includes(keyword) ||
+              content.includes(keyword)
+            );
+          })
+          .map((blog, index) => ({
+            id: blog.id || index + 1,
+            title: blog.title,
+            excerpt: blog.excerpt || (blog.content ? blog.content.substring(0, 150) + "..." : "No excerpt available"),
+            author: blog.author || "Anonymous",
+            readTime: blog.read_time || "8 min read",
+            category: blog.category || "Guide",
+            link: `/blog/${blog.id}`,
+          }))
+          .slice(0, 3); // Limit to 6 guides
+        
+        setGuides(guideBlogs);
+      } catch (err) {
+        console.error("Failed to fetch guides:", err);
+      } finally {
+        setIsLoadingGuides(false);
+      }
+    };
+
+    fetchRoadmaps();
+    fetchGuides();
+  }, []);
+
   const filteredRoadmaps = roadmaps
     .filter(roadmap => {
       const matchesCategory = selectedCategory === 'all' || roadmap.category === selectedCategory;
       const matchesSearch = roadmap.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           roadmap.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           roadmap.author.toLowerCase().includes(searchQuery.toLowerCase());
+        (roadmap.excerpt && roadmap.excerpt.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (roadmap.author && roadmap.author.toLowerCase().includes(searchQuery.toLowerCase()));
       return matchesCategory && matchesSearch;
     })
     .sort((a, b) => {
       switch (sortBy) {
-        case 'featured':
-          return b.featured - a.featured;
-        case 'rating':
-          return b.rating - a.rating;
-        case 'students':
-          return b.students - a.students;
-        case 'newest':
-          return b.id - a.id;
-        case 'title':
-          return a.title.localeCompare(b.title);
-        default:
-          return 0;
+        case 'featured': return b.featured - a.featured;
+        case 'rating': return b.rating - a.rating;
+        case 'students': return b.students - a.students; // This now represents views
+        case 'newest': return b.id - a.id;
+        case 'title': return a.title.localeCompare(b.title);
+        default: return 0;
       }
     });
 
-  const featuredRoadmaps = roadmaps.filter(roadmap => roadmap.featured);
+  const categories = [
+    { id: 'all', name: 'All Roadmaps', count: roadmaps.length },
+    ...Array.from(new Set(roadmaps.map(r => r.category))).map(category => ({
+      id: category,
+      name: category.charAt(0).toUpperCase() + category.slice(1),
+      count: roadmaps.filter(r => r.category === category).length,
+    }))
+  ];
+
+  const featuredRoadmaps = roadmaps.filter(r => r.featured);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-900 text-white">
@@ -217,8 +179,8 @@ export default function RoadmapPage() {
                 {roadmaps.length} Roadmaps Available
               </span>
               <span className="flex items-center gap-2">
-                <FaUser className="w-4 h-4" />
-                {roadmaps.reduce((total, roadmap) => total + roadmap.students, 0).toLocaleString()} Students
+                <FaEye className="w-4 h-4" />
+                {roadmaps.reduce((total, roadmap) => total + roadmap.students, 0).toLocaleString()} Views
               </span>
             </div>
           </div>
@@ -252,14 +214,14 @@ export default function RoadmapPage() {
                           </span>
                           <div className="flex items-center gap-1">
                             <FaStar className="w-3 h-3 text-yellow-400" />
-                            <span className="text-sm text-gray-300">{roadmap.rating}</span>
+                            <span className="text-sm text-gray-300">4.5</span>
                           </div>
                         </div>
                         <h3 className="font-bold text-lg mb-2 text-white line-clamp-2">{roadmap.title}</h3>
-                        <p className="text-gray-400 text-sm mb-3 line-clamp-2">{roadmap.description}</p>
+                        <p className="text-gray-400 text-sm mb-3 line-clamp-2">{roadmap.excerpt || "No excerpt available"}</p>
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-gray-400">{roadmap.author}</span>
-                          <button className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-all duration-300 transform hover:scale-105">
+                          <button onClick={() => handleViewRoadmap(roadmap.id)} className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-all duration-300 transform hover:scale-105">
                             View Roadmap
                           </button>
                         </div>
@@ -373,18 +335,18 @@ export default function RoadmapPage() {
                       />
                     </div>
                     
-                    {/* Sort Dropdown */}
                     <select
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value)}
-                      className="px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="featured">Featured First</option>
-                      <option value="rating">Highest Rated</option>
-                      <option value="students">Most Students</option>
-                      <option value="newest">Newest First</option>
-                      <option value="title">Alphabetical</option>
-                    </select>
+  value={sortBy}
+  onChange={(e) => setSortBy(e.target.value)}
+  className="px-4 py-3 bg-blue-600 text-white border border-blue-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-300"
+>
+  <option value="featured">Featured First</option>
+  <option value="rating">Highest Rated</option>
+  <option value="students">Most Views</option>
+  <option value="newest">Newest First</option>
+  <option value="title">Alphabetical</option>
+</select>
+
 
                     {/* View Mode Toggle */}
                     <div className="flex bg-white/10 rounded-xl p-1">
@@ -430,6 +392,7 @@ export default function RoadmapPage() {
                         <div className="text-center">
                           <div className="flex justify-center mb-4">
                             {roadmap.icon}
+                            
                           </div>
                           <div className="flex items-center justify-center gap-2 mb-3">
                             <div className="flex items-center gap-1">
@@ -437,10 +400,10 @@ export default function RoadmapPage() {
                               <span className="text-sm text-gray-300">{roadmap.rating}</span>
                             </div>
                             <span className="text-gray-500">•</span>
-                            <span className="text-sm text-gray-400">{roadmap.students.toLocaleString()} students</span>
+                            <span className="text-sm text-gray-400">{roadmap.students.toLocaleString()} views</span>
                           </div>
                           <h3 className="font-bold text-lg mb-2 text-white line-clamp-2">{roadmap.title}</h3>
-                          <p className="text-gray-400 text-sm mb-4 line-clamp-3">{roadmap.description}</p>
+                          <p className="text-gray-400 text-sm mb-4 line-clamp-3">{roadmap.excerpt || "No excerpt available"}</p>
                           <div className="flex items-center justify-center gap-4 text-xs text-gray-400 mb-4">
                             <span className="flex items-center gap-1">
                               <FaUser className="w-3 h-3" />
@@ -457,11 +420,11 @@ export default function RoadmapPage() {
                                 {skill}
                               </span>
                             ))}
-                          </div>
-                          <button className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 shadow-lg">
-                            View Roadmap
-                          </button>
                         </div>
+                            <button onClick={() => handleViewRoadmap(roadmap.id)} className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-6 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 shadow-lg">
+                              View Roadmap
+                            </button>
+                          </div>
                       </div>
                     ))}
                   </div>
@@ -484,7 +447,7 @@ export default function RoadmapPage() {
                                 <span className="text-sm text-gray-300">{roadmap.rating}</span>
                               </div>
                             </div>
-                            <p className="text-gray-400 mb-3">{roadmap.description}</p>
+                            <p className="text-gray-400 mb-3">{roadmap.excerpt || "No excerpt available"}</p>
                             <div className="flex items-center gap-6 text-sm text-gray-400 mb-4">
                               <span className="flex items-center gap-2">
                                 <FaUser className="w-4 h-4" />
@@ -496,7 +459,7 @@ export default function RoadmapPage() {
                               </span>
                               <span className="flex items-center gap-2">
                                 <FaEye className="w-4 h-4" />
-                                {roadmap.students.toLocaleString()} students
+                                {roadmap.students.toLocaleString()} views
                               </span>
                               <span className="flex items-center gap-2">
                                 <FaGraduationCap className="w-4 h-4" />
@@ -510,7 +473,7 @@ export default function RoadmapPage() {
                                 </span>
                               ))}
                             </div>
-                            <button className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-6 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 shadow-lg">
+                            <button onClick={() => handleViewRoadmap(roadmap.id)} className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-6 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 shadow-lg">
                               View Roadmap
                             </button>
                           </div>
@@ -537,30 +500,45 @@ export default function RoadmapPage() {
         <section className="px-4 pb-16">
           <div className="max-w-7xl mx-auto">
             <h2 className="text-2xl font-bold mb-8 text-white text-center">Guides & Resources</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {guides.map((guide, index) => (
-                <div
-                  key={index}
-                  className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl hover:shadow-blue-500/20 transition-all duration-300 hover:scale-105"
-                >
-                  <div className="flex items-center gap-3 mb-4">
-                    <FaLightbulb className="text-yellow-400 text-2xl" />
-                    <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded-full text-xs font-medium">
-                      {guide.category}
-                    </span>
-                  </div>
-                  <h3 className="font-bold text-lg mb-2 text-white">{guide.title}</h3>
-                  <p className="text-gray-400 text-sm mb-4">{guide.description}</p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-400">{guide.author}</span>
-                    <span className="text-sm text-gray-400 flex items-center gap-1">
-                      <FaClock className="w-3 h-3" />
-                      {guide.readTime}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
+            {isLoadingGuides ? (
+              <div className="flex justify-center items-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+              </div>
+            ) : guides.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {guides.map((guide, index) => (
+                  <Link
+                    to={guide.link}
+                    key={index}
+                    className="block group"
+                  >
+                    <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl hover:shadow-blue-500/20 transition-all duration-300 hover:scale-105 cursor-pointer">
+                      <div className="flex items-center gap-3 mb-4">
+                        <FaLightbulb className="text-yellow-400 text-2xl" />
+                        <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded-full text-xs font-medium">
+                          {guide.category}
+                        </span>
+                      </div>
+                      <h3 className="font-bold text-lg mb-2 text-white group-hover:text-blue-300 transition-colors">{guide.title}</h3>
+                      <p className="text-gray-400 text-sm mb-4">{guide.excerpt || "No excerpt available"}</p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-400">{guide.author}</span>
+                        <span className="text-sm text-gray-400 flex items-center gap-1">
+                          <FaClock className="w-3 h-3" />
+                          {guide.readTime}
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <FaLightbulb className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-xl font-bold text-gray-300 mb-2">No guides available</h3>
+                <p className="text-gray-400">Check back later for helpful guides and resources</p>
+              </div>
+            )}
           </div>
         </section>
 

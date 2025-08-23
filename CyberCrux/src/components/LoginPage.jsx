@@ -3,7 +3,7 @@ import Footer from "./Footer";
 import { FcGoogle } from "react-icons/fc";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FiLogIn } from "react-icons/fi";
+import { FiLogIn, FiEye, FiEyeOff } from "react-icons/fi";
 import DOMPurify from 'dompurify';
 import { useAuth } from '../AuthContext';
 
@@ -14,6 +14,7 @@ export default function Login() {
     password: ""
   });
   const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
   const { login } = useAuth();
 
@@ -136,15 +137,24 @@ export default function Login() {
                 <label className="block text-sm font-semibold mb-2 text-gray-200">
                   Password
                 </label>
-              <input
-                type="password"
-                name="password"
-                  placeholder="Enter your password"
-                  className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-300"
-                value={formData.password}
-                onChange={handleChange}
-                required
-              />
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    name="password"
+                    placeholder="Enter your password"
+                    className="w-full px-4 py-3 pr-12 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-300"
+                    value={formData.password}
+                    onChange={handleChange}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-400 hover:scale-110 transition-all duration-200 p-1 rounded-full hover:bg-white/10"
+                  >
+                    {showPassword ? <FiEyeOff className="w-5 h-5" /> : <FiEye className="w-5 h-5" />}
+                  </button>
+                </div>
             </div>
               
               <div className="text-right">
