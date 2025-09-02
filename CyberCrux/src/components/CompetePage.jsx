@@ -206,8 +206,8 @@ export default function CompetePage() {
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
+          ))}
+        </div>
 
           {/* Desktop Layout - Horizontal Podium */}
           <div className="hidden sm:flex justify-center items-end gap-4 sm:gap-4 md:gap-6 lg:gap-8">

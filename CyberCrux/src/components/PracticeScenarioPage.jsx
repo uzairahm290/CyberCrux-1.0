@@ -69,7 +69,7 @@ export default function PracticeScenarioPage() {
   const [error, setError] = useState(null);
   const [showExplanation, setShowExplanation] = useState({});
   const [questionResults, setQuestionResults] = useState({});
-  const [showHintModal, setShowHintModal] = useState(false);
+  const [showHintNotification, setShowHintNotification] = useState(false);
   const [currentHint, setCurrentHint] = useState('');
 
   // Fetch scenario and questions from API
@@ -698,6 +698,40 @@ export default function PracticeScenarioPage() {
                             handleAnswer(e.target.value);
                           }
                         }}
+                        onKeyPress={(e) => {
+                          // Handle Enter key press
+                          if (e.key === 'Enter' && !questionFeedback[currentQuestion]?.isCorrect) {
+                            e.preventDefault();
+                            const userAnswer = userAnswers[currentQuestion] || '';
+                            const correctAnswer = currentQ.correct_answer || '';
+                            const isCorrect = userAnswer.trim().toLowerCase() === correctAnswer.trim().toLowerCase();
+                            
+                            setQuestionFeedback(prev => ({
+                              ...prev,
+                              [currentQuestion]: {
+                                isCorrect,
+                                message: isCorrect ? 'Correct!' : 'Incorrect. Try again!',
+                                userAnswer,
+                                correctAnswer
+                              }
+                            }));
+                            
+                            // Check if all questions have been submitted and are correct
+                            if (isCorrect) {
+                              const allQuestionsSubmitted = currentScenario.questions.every((_, index) => 
+                                questionFeedback[index]?.isCorrect || (index === currentQuestion && isCorrect)
+                              );
+                              
+                              if (allQuestionsSubmitted) {
+                                // All questions completed correctly, finish the scenario
+                                setTimeout(() => {
+                                  calculateScore();
+                                  setShowResults(true); // Automatically show results
+                                }, 1000); // Small delay to show the "Correct!" message
+                              }
+                            }
+                          }
+                        }}
                         disabled={questionFeedback[currentQuestion]?.isCorrect}
                     />
                     </div>
@@ -746,7 +780,9 @@ export default function PracticeScenarioPage() {
                         // Show hint for the current question
                         const hint = currentQ.explanation || "Look carefully at the scenario description above for clues.";
                         setCurrentHint(hint);
-                        setShowHintModal(true);
+                        setShowHintNotification(true);
+                        // Auto-hide after 5 seconds
+                        setTimeout(() => setShowHintNotification(false), 5000);
                       }}
                       className="px-4 md:px-6 py-2.5 md:py-3 bg-orange-500/20 hover:bg-orange-500/40 border border-orange-500/30 text-orange-400 rounded-lg md:rounded-xl transition-all duration-300 flex items-center justify-center gap-2 text-sm md:text-base"
                       title="Get a hint for this question"
@@ -813,9 +849,11 @@ export default function PracticeScenarioPage() {
                         // All questions completed, finish the scenario
                         calculateScore();
                       } else {
-                        // Some questions not completed, show custom modal
+                        // Some questions not completed, show notification
                         setCurrentHint('Please complete all questions before finishing the scenario.');
-                        setShowHintModal(true);
+                        setShowHintNotification(true);
+                        // Auto-hide after 5 seconds
+                        setTimeout(() => setShowHintNotification(false), 5000);
                       }
                     } else {
                       nextQuestion();
@@ -1057,27 +1095,27 @@ export default function PracticeScenarioPage() {
 
 
 
-      {/* Custom Hint Modal */}
-      {showHintModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="bg-gradient-to-br from-orange-500/20 to-red-500/20 backdrop-blur-xl border border-orange-500/30 rounded-3xl p-8 max-w-lg mx-4 modal-fade-in">
-            <div className="text-center mb-6">
-              <div className="w-20 h-20 bg-gradient-to-r from-orange-500 to-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                <FaLightbulb className="w-10 h-10 text-white" />
+      {/* Hint Notification - Bottom Right */}
+      {showHintNotification && (
+        <div className="fixed bottom-4 right-4 z-50 animate-slide-in-right">
+          <div className="bg-gradient-to-br from-orange-500/20 to-red-500/20 backdrop-blur-xl border border-orange-500/30 rounded-2xl p-4 max-w-sm shadow-2xl shadow-orange-500/25">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0">
+                <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-red-500 rounded-full flex items-center justify-center">
+                  <FaLightbulb className="w-5 h-5 text-white" />
+                </div>
               </div>
-              <h3 className="text-2xl font-bold text-white mb-2">💡 Hint</h3>
-            </div>
-            
-            <div className="text-gray-200 text-lg leading-relaxed mb-6">
-              {currentHint}
-            </div>
-            
-            <div className="flex justify-center">
+              <div className="flex-1 min-w-0">
+                <h4 className="text-sm font-semibold text-white mb-1">💡 Hint</h4>
+                <p className="text-sm text-gray-200 leading-relaxed">
+                  {currentHint}
+                </p>
+              </div>
               <button
-                onClick={() => setShowHintModal(false)}
-                className="px-8 py-3 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-semibold rounded-xl transition-all duration-300 hover:scale-105"
+                onClick={() => setShowHintNotification(false)}
+                className="flex-shrink-0 text-gray-400 hover:text-white transition-colors"
               >
-                Got it!
+                <FaTimes className="w-4 h-4" />
               </button>
             </div>
           </div>
