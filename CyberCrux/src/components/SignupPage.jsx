@@ -1,12 +1,15 @@
 import MainNavbar from "./MainNav";
 import Footer from "./Footer";
 import { FcGoogle } from "react-icons/fc";
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useContext } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { FiUserPlus, FiEye, FiEyeOff } from "react-icons/fi";
 import DOMPurify from 'dompurify';
+import { useAuth } from "../AuthContext";
 
 export default function () {
+  const navigate = useNavigate();
+  const { login } = useAuth();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     username: "",
@@ -126,7 +129,7 @@ export default function () {
         throw new Error(data.message || 'Signup failed');
       }
 
-      setSuccess(data.message + (data.username ? ` - Your username is: ${data.username}` : ''));
+      setSuccess(data.message + (data.username ? ` - Your username is: ${data.username}` : '') + ' Please check your email to verify your account.');
       setFormData({
         username: '',
         fullName: '',
@@ -134,6 +137,16 @@ export default function () {
         password: '',
         confirmPassword: '',
       });
+      
+      // Log the user in with the response data
+      if (data.user) {
+        login(data.user);
+      }
+      
+      // Redirect to email verification page after successful signup
+      setTimeout(() => {
+        navigate('/verify-email');
+      }, 1500);
   
     } catch (err) {
       setError(err.message || 'An unexpected error occurred');

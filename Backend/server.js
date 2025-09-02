@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const cookieParser = require('cookie-parser');
+const { sendWelcomeEmail, sendVerificationEmail } = require('./emailService');
 const validator = require('validator');
 const sanitizeHtml = require('sanitize-html');
 const session = require('express-session');
@@ -161,8 +162,17 @@ passport.use(new GoogleStrategy({
     console.log('🔍 Database query result:', existingUser.length, 'users found');
     
     if (existingUser.length > 0) {
-      // User exists, return user data
+      // User exists, but let's ensure they're marked as verified (for existing Google users)
       const user = existingUser[0];
+      if (!user.is_verified) {
+        try {
+          await executeQuery('UPDATE users SET is_verified = TRUE WHERE id = ?', [user.id]);
+          console.log('✅ Marked existing Google user as verified:', user.username);
+        } catch (error) {
+          console.log('⚠️ Failed to update verification status for existing Google user:', error.message);
+        }
+      }
+      
       console.log('✅ Existing user found:', user.username);
       return done(null, {
         id: user.id,
@@ -202,12 +212,26 @@ passport.use(new GoogleStrategy({
     const randomPassword = Math.random().toString(36).slice(-12) + Math.random().toString(36).slice(-12);
       const hashedPassword = await bcrypt.hash(randomPassword, 10);
       
+      // Generate verification token (even though Google users are verified, we need it for consistency)
+      const verificationToken = crypto.randomBytes(32).toString('hex');
+      const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+      
       const result = await executeQuery(
-        'INSERT INTO users (username, FullName, email, google_id, password_hash) VALUES (?, ?, ?, ?, ?)',
-        [username, fullName, email, profile.id, hashedPassword]
+        'INSERT INTO users (username, FullName, email, google_id, password_hash, verification_token, verification_expires, is_verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [username, fullName, email, profile.id, hashedPassword, verificationToken, verificationExpires, true]
       );
       
-      console.log('✅ New user created with ID:', result.insertId);
+      console.log('✅ New Google user created with ID:', result.insertId);
+      
+      // Send welcome email to Google users (they're already verified)
+      try {
+        const { sendWelcomeEmail } = require('./emailService');
+        await sendWelcomeEmail(email, fullName, username);
+        console.log('✅ Welcome email sent to Google user:', email);
+      } catch (error) {
+        console.log('⚠️ Failed to send welcome email to Google user:', error.message);
+        // Don't fail the OAuth flow if email fails
+      }
       
       return done(null, {
         id: result.insertId,
@@ -225,7 +249,15 @@ passport.use(new GoogleStrategy({
 
 // Google OAuth Routes
 app.get('/api/auth/google',
-  passport.authenticate('google', { scope: ['profile', 'email'] })
+  (req, res, next) => {
+    // Check if we want to force account selection
+    const prompt = req.query.prompt || 'select_account';
+    
+    passport.authenticate('google', { 
+      scope: ['profile', 'email'],
+      prompt: prompt // Force Google to show account selection
+    })(req, res, next);
+  }
 );
 
 app.get('/api/auth/google/callback',
@@ -236,7 +268,7 @@ app.get('/api/auth/google/callback',
     
     // Create JWT token
     const token = jwt.sign(
-      { id: req.user.id, username: req.user.username, email: req.user.email, fullName: req.user.FullName },
+      { id: req.user.id, username: req.user.username, email: req.user.email, fullName: req.user.FullName, isVerified: true },
       process.env.JWT_SECRET || 'default_jwt_secret',
       { expiresIn: '7d' }
     );
@@ -382,10 +414,94 @@ async function setupInitialBadges() {
   }
 }
 
+// Create database tables if they don't exist
+async function createTablesIfNotExist() {
+  try {
+    const connection = await pool.getConnection();
+    
+    console.log('🔧 Setting up page views tracking tables...');
+    
+    // Create page_views table
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS page_views (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        page_name VARCHAR(255) NOT NULL,
+        user_id INT,
+        ip_address VARCHAR(45),
+        user_agent TEXT,
+        referrer VARCHAR(500),
+        session_id VARCHAR(255),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_page_name (page_name),
+        INDEX idx_created_at (created_at),
+        INDEX idx_user_id (user_id)
+      )
+    `);
+
+    // Create user_sessions table
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS user_sessions (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        session_id VARCHAR(255) UNIQUE NOT NULL,
+        user_id INT,
+        ip_address VARCHAR(45),
+        user_agent TEXT,
+        started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        is_active BOOLEAN DEFAULT TRUE,
+        INDEX idx_session_id (session_id),
+        INDEX idx_user_id (user_id),
+        INDEX idx_last_activity (last_activity)
+      )
+    `);
+
+    // Create daily_stats table
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS daily_stats (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        date DATE UNIQUE NOT NULL,
+        total_page_views INT DEFAULT 0,
+        unique_visitors INT DEFAULT 0,
+        new_users INT DEFAULT 0,
+        active_users INT DEFAULT 0,
+        avg_session_duration FLOAT DEFAULT 0,
+        bounce_rate FLOAT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_date (date)
+      )
+    `);
+
+    // Add verification fields to users table if they don't exist
+    try {
+      await connection.execute(`
+        ALTER TABLE users 
+        ADD COLUMN verification_token VARCHAR(255) NULL,
+        ADD COLUMN verification_expires TIMESTAMP NULL,
+        ADD COLUMN is_verified BOOLEAN DEFAULT FALSE
+      `);
+      console.log('✅ Email verification fields added to users table');
+    } catch (error) {
+      // Fields might already exist, ignore error
+      console.log('ℹ️ Email verification fields already exist or not needed');
+    }
+
+
+
+    connection.release();
+    console.log('✅ Page views tracking tables created successfully');
+  } catch (error) {
+    console.error('❌ Error creating tables:', error);
+  }
+}
+
 pool.getConnection()
   .then(async conn => {
     console.log('✅ Database connected successfully');
     conn.release();
+    
+    // Create page views tracking tables
+    await createTablesIfNotExist();
     
     // Initialize badge system
     await initializeBadgeSystem();
@@ -393,6 +509,27 @@ pool.getConnection()
   .catch(err => {
     console.error('❌ Database connection failed:', err.message);
   });
+
+// Helper function to check if new password is same as current password
+async function isPasswordSameAsCurrent(userId, newPassword) {
+  try {
+    // Get the current password hash
+    const [user] = await executeQuery('SELECT password_hash FROM users WHERE id = ?', [userId]);
+    
+    if (user.length === 0) {
+      return false; // User not found, allow password change
+    }
+    
+    // Check if the new password matches the current password
+    const isMatch = await bcrypt.compare(newPassword, user[0].password_hash);
+    return isMatch; // Returns true if passwords are the same
+    
+  } catch (error) {
+    console.error('Error checking current password:', error);
+    // If there's an error checking, allow the password change for security
+    return false;
+  }
+}
 
 // JWT authentication middleware
 function authenticateToken(req, res, next) {
@@ -437,6 +574,57 @@ app.get('/api/auth/protected', authenticateToken, (req, res) => {
 app.post('/api/auth/logout', (req, res) => {
   res.clearCookie('token');
   res.json({ success: true, message: 'Logged out successfully' });
+});
+
+// Google OAuth logout endpoint - clears Google session state
+app.get('/api/auth/google/logout', (req, res) => {
+  // Clear the application token
+  res.clearCookie('token');
+  
+  // Redirect to Google's logout URL to clear Google session
+  const googleLogoutUrl = 'https://accounts.google.com/logout';
+  
+  // Also clear any Google OAuth state by redirecting to Google's logout
+  res.redirect(googleLogoutUrl);
+});
+
+// Enhanced logout that clears Google OAuth state
+app.post('/api/auth/google/enhanced-logout', (req, res) => {
+  // Clear the application token
+  res.clearCookie('token');
+  
+  // Return success with instructions for frontend
+  res.json({ 
+    success: true, 
+    message: 'Logged out successfully. To switch Google accounts, please close all browser tabs and login again.',
+    googleLogoutUrl: 'https://accounts.google.com/logout'
+  });
+});
+
+// Force Google account selection (useful for switching accounts)
+app.get('/api/auth/google/select-account', (req, res) => {
+  // Clear any existing tokens
+  res.clearCookie('token');
+  
+  // Use Passport.js with force account selection
+  passport.authenticate('google', { 
+    scope: ['profile', 'email'],
+    prompt: 'select_account',
+    access_type: 'offline'
+  })(req, res);
+});
+
+// Switch Google account endpoint
+app.post('/api/auth/google/switch-account', (req, res) => {
+  // Clear the current session
+  res.clearCookie('token');
+  
+  // Return success with redirect URL for frontend to handle
+  res.json({ 
+    success: true, 
+    message: 'Session cleared. Please login with different Google account.',
+    redirectUrl: '/api/auth/google?prompt=select_account'
+  });
 });
 
 // Signup
@@ -521,12 +709,49 @@ app.post('/api/auth/signup', async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 12);
-    await executeQuery('INSERT INTO users (username, FullName, email, password_hash) VALUES (?, ?, ?, ?)', [finalUsername, fullName, email, hashedPassword]);
+    
+    // Generate verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    
+    const result = await executeQuery('INSERT INTO users (username, FullName, email, password_hash, verification_token, verification_expires, is_verified) VALUES (?, ?, ?, ?, ?, ?, ?)', 
+      [finalUsername, fullName, email, hashedPassword, verificationToken, verificationExpires, false]);
+    
+    // Get the newly created user
+    const newUser = await executeQuery('SELECT * FROM users WHERE id = ?', [result.insertId]);
+    
+    // Send welcome email
+    await sendWelcomeEmail(email, fullName, finalUsername);
+    
+    // Send verification email
+    await sendVerificationEmail(email, fullName, verificationToken);
+    
+    // Automatically log the user in by creating a JWT token
+    const token = jwt.sign(
+      { id: newUser[0].id, username: newUser[0].username, email: newUser[0].email, fullName: newUser[0].FullName, isVerified: false },
+      process.env.JWT_SECRET || 'default_jwt_secret',
+      { expiresIn: '7d' }
+    );
+
+    // Set token as HttpOnly cookie
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
 
     return res.status(201).json({ 
       success: true, 
-      message: 'Account created successfully!',
+      message: 'Account created successfully! Check your email for verification. You are now logged in.',
       username: finalUsername,
+      user: {
+        id: newUser[0].id,
+        username: newUser[0].username,
+        fullName: newUser[0].FullName,
+        email: newUser[0].email,
+        isVerified: false
+      },
       note: username ? 'Your chosen username was used.' : `A unique username "${finalUsername}" was automatically generated for you.`
     });
   } catch (error) {
@@ -599,6 +824,92 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+// Email verification endpoint
+app.get('/api/auth/verify-email/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    // Find user with this verification token
+    const users = await executeQuery('SELECT * FROM users WHERE verification_token = ? AND verification_expires > NOW()', [token]);
+    
+    if (users.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid or expired verification token' 
+      });
+    }
+    
+    const user = users[0];
+    
+    // Update user as verified
+    await executeQuery('UPDATE users SET is_verified = true, verification_token = NULL, verification_expires = NULL WHERE id = ?', [user.id]);
+    
+    res.json({ 
+      success: true, 
+      message: 'Email verified successfully! Your account is now fully activated.',
+      user: {
+        id: user.id,
+        username: user.username,
+        fullName: user.FullName,
+        email: user.email,
+        isVerified: true
+      }
+    });
+    
+  } catch (error) {
+    console.error('Email verification error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+// Resend verification email endpoint
+app.post('/api/auth/resend-verification', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email is required' });
+    }
+
+    // Find user by email
+    const users = await executeQuery('SELECT * FROM users WHERE email = ?', [email]);
+    
+    if (users.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const user = users[0];
+
+    // Check if user is already verified
+    if (user.is_verified) {
+      return res.status(400).json({ success: false, message: 'User is already verified' });
+    }
+
+    // Generate new verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    // Update user with new verification token
+    await executeQuery(
+      'UPDATE users SET verification_token = ?, verification_expires = ? WHERE id = ?',
+      [verificationToken, verificationExpires, user.id]
+    );
+
+    // Send new verification email
+    const { sendVerificationEmail } = require('./emailService');
+    await sendVerificationEmail(user.email, user.FullName, verificationToken);
+
+    res.json({
+      success: true,
+      message: 'Verification email resent successfully'
+    });
+
+  } catch (error) {
+    console.error('Resend verification error:', error);
+    res.status(500).json({ success: false, message: 'Failed to resend verification email' });
+  }
+});
+
 // Forgot Password
 app.post('/api/auth/forgot-password', async (req, res) => {
   const { email } = req.body;
@@ -614,42 +925,9 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 
     await executeQuery('UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE email = ?', [token, expires, email]);
 
-    const link = `${FRONTEND_URL}/reset-password/${token}`;
-
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: 'contact.cybercrux@gmail.com',
-        pass: 'mfca gvba beyd tsru'
-      }
-    });
-
-    await transporter.sendMail({
-      from: 'contact.cybercrux@gmail.com',
-      to: email,
-      subject: 'Password Reset - CyberCrux',
-      html: `
-      <div style="background: #f4f8fb; padding: 40px 0; min-height: 100vh; font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;">
-        <div style="max-width: 480px; margin: 40px auto; background: #fff; border-radius: 18px; box-shadow: 0 8px 32px rgba(44, 62, 80, 0.12); padding: 32px 28px 28px 28px;">
-          <div style="text-align: center; margin-bottom: 24px;">
-            <img src='https://i.imgur.com/2yaf2wb.png' alt='CyberCrux Logo' style="height: 48px; margin-bottom: 8px;" />
-            <h2 style="color: #14305c; font-size: 2rem; margin: 0 0 8px 0; font-weight: 700;">Reset Your Password</h2>
-            <p style="color: #4176e4; font-size: 1.1rem; margin: 0;">CyberCrux Security Platform</p>
-          </div>
-          <p style="color: #222; font-size: 1.05rem; margin-bottom: 28px; text-align: center;">We received a request to reset your password. Click the button below to set a new password. This link will expire in 1 hour for your security.</p>
-          <div style="text-align: center; margin-bottom: 36px;">
-            <a href="${link}" style="display: inline-block; padding: 18px 48px; background: linear-gradient(90deg, #3fa9f5 0%, #4176e4 100%); color: #fff; font-weight: 700; border-radius: 32px; text-decoration: none; font-size: 1.25rem; letter-spacing: 0.5px; box-shadow: 0 4px 16px rgba(65, 118, 228, 0.13); transition: background 0.2s, box-shadow 0.2s; border: none; cursor: pointer;">
-              Reset Password
-            </a>
-          </div>
-          <p style="color: #888; font-size: 0.98rem; text-align: center; margin-bottom: 0;">If you did not request this, you can safely ignore this email.<br/>For help, contact <a href="mailto:contact.cybercrux@gmail.com" style="color: #4176e4; text-decoration: underline;">support</a>.</p>
-          <div style="margin-top: 32px; text-align: center;">
-            <span style="color: #b8bcd5; font-size: 0.95rem;">&copy; ${new Date().getFullYear()} CyberCrux. All rights reserved.</span>
-          </div>
-        </div>
-      </div>
-      `
-    });
+    // Use email service instead of direct nodemailer
+    const { sendPasswordResetEmail } = require('./emailService');
+    await sendPasswordResetEmail(email, token);
 
     return res.status(200).json({ success: true, message: 'Reset link sent' });
   } catch (err) {
@@ -668,8 +946,19 @@ app.post('/api/auth/reset-password/:token', async (req, res) => {
     if (rows.length === 0) return res.status(400).json({ success: false, message: 'Invalid or expired token' });
 
     const user = rows[0];
+    
+    // Check if new password is the same as current password
+    const isSamePassword = await bcrypt.compare(password, user.password_hash);
+    if (isSamePassword) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'New password cannot be the same as your current password. Please choose a different password.' 
+      });
+    }
+
     const hashedPassword = await bcrypt.hash(password, 12);
 
+    // Update the user's password
     await executeQuery('UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?', [hashedPassword, user.id]);
 
     return res.json({ success: true, message: 'Password reset successful' });
@@ -722,6 +1011,16 @@ app.put('/api/auth/change-password', authenticateToken, async (req, res) => {
     if (!isMatch) {
       return res.status(401).json({ success: false, message: 'Current password is incorrect' });
     }
+    
+    // Check if new password is the same as current password
+    const isSamePassword = await bcrypt.compare(newPassword, user[0].password_hash);
+    if (isSamePassword) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'New password cannot be the same as your current password. Please choose a different password.' 
+      });
+    }
+    
     const hashedPassword = await bcrypt.hash(newPassword, 12);
     await executeQuery('UPDATE users SET password_hash = ? WHERE id = ?', [hashedPassword, userId]);
     res.json({ success: true, message: 'Password changed successfully' });
@@ -1024,6 +1323,122 @@ app.get('/api/test/database', async (req, res) => {
   }
 });
 
+// Test endpoint to test account deletion email
+app.post('/api/test/account-deletion-email', async (req, res) => {
+  try {
+    const { email, fullName, username } = req.body;
+    
+    if (!email || !fullName || !username) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email, fullName, and username are required'
+      });
+    }
+    
+    console.log('🧪 Testing account deletion email with data:', {
+      email, fullName, username
+    });
+    
+    // Test email service import
+    console.log('🧪 Testing email service import...');
+    const emailService = require('./emailService');
+    console.log('🧪 Email service imported:', Object.keys(emailService));
+    
+    const { sendAccountDeletionEmail } = emailService;
+    console.log('🧪 sendAccountDeletionEmail function type:', typeof sendAccountDeletionEmail);
+    
+    const result = await sendAccountDeletionEmail(
+      email,
+      fullName,
+      username
+    );
+    
+    console.log('🧪 Account deletion email result:', result);
+    
+    if (result.success) {
+      res.json({
+        success: true,
+        message: 'Account deletion email sent successfully',
+        messageId: result.messageId
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to send account deletion email',
+        error: result.error
+      });
+    }
+  } catch (error) {
+    console.error('❌ Account deletion email test failed:', error);
+    console.error('❌ Error stack:', error.stack);
+    res.status(500).json({
+      success: false,
+      message: 'Account deletion email test failed',
+      error: error.message
+    });
+  }
+});
+
+// Test endpoint to test badge earned email
+app.post('/api/test/badge-email', async (req, res) => {
+  try {
+    const { email, fullName, badgeName, badgeDescription, badgeIcon, badgeRarity, pointsEarned } = req.body;
+    
+    if (!email || !fullName || !badgeName) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email, fullName, and badgeName are required'
+      });
+    }
+    
+    console.log('🧪 Testing badge email with data:', {
+      email, fullName, badgeName, badgeDescription, badgeIcon, badgeRarity, pointsEarned
+    });
+    
+    // Test email service import
+    console.log('🧪 Testing email service import...');
+    const emailService = require('./emailService');
+    console.log('🧪 Email service imported:', Object.keys(emailService));
+    
+    const { sendBadgeEarnedEmail } = emailService;
+    console.log('🧪 sendBadgeEarnedEmail function type:', typeof sendBadgeEarnedEmail);
+    
+    const result = await sendBadgeEarnedEmail(
+      email,
+      fullName,
+      badgeName,
+      badgeDescription || 'Test badge description',
+      badgeIcon || 'https://img.icons8.com/color/96/000000/trophy.png',
+      badgeRarity || 'common',
+      pointsEarned || 100
+    );
+    
+    console.log('🧪 Badge email result:', result);
+    
+    if (result.success) {
+      res.json({
+        success: true,
+        message: 'Badge earned email sent successfully',
+        messageId: result.messageId
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to send badge earned email',
+        error: result.error
+      });
+    }
+  } catch (error) {
+    console.error('❌ Badge email test failed:', error);
+    console.error('❌ Error stack:', error.stack);
+    res.status(500).json({
+      success: false,
+      message: 'Badge email test failed',
+      error: error.message
+    });
+  }
+});
+
 // ==================== USER PROFILE API ENDPOINTS ====================
 
 // Update user profile (settings)
@@ -1207,20 +1622,75 @@ app.delete('/api/user/account', authenticateToken, async (req, res) => {
     await connection.beginTransaction();
     
     try {
-      // Delete user from all related tables
-      await connection.execute('DELETE FROM user_badges WHERE user_id = ?', [userId]);
-      await connection.execute('DELETE FROM user_practice_progress WHERE user_id = ?', [userId]);
-      await connection.execute('DELETE FROM user_streaks WHERE user_id = ?', [userId]);
+      // First verify the user exists
+      const [userCheck] = await connection.execute('SELECT id FROM users WHERE id = ?', [userId]);
+      if (userCheck.length === 0) {
+        return res.status(404).json({ success: false, message: 'User not found' });
+      }
+      
+      console.log(`🗑️ Starting account deletion for user ${userId}`);
+      
+      // Delete user from all related tables (in correct order to avoid foreign key issues)
+      // Use try-catch for each deletion to handle tables that might not exist
+      const tablesToClean = [
+        'user_notifications',
+        'user_badges', 
+        'user_practice_progress',
+        'user_streaks',
+        'page_views',
+        'user_sessions'
+      ];
+      
+      for (const table of tablesToClean) {
+        try {
+          const [result] = await connection.execute(`DELETE FROM ${table} WHERE user_id = ?`, [userId]);
+          console.log(`✅ Cleaned ${table} for user ${userId} (${result.affectedRows} rows)`);
+        } catch (error) {
+          console.log(`ℹ️ Table ${table} not found or error:`, error.message);
+        }
+      }
+      
+      // Get user info before deletion for email
+      const [userInfo] = await connection.execute('SELECT username, email, FullName FROM users WHERE id = ?', [userId]);
       
       // Finally delete the user
-      await connection.execute('DELETE FROM users WHERE id = ?', [userId]);
+      const [deleteResult] = await connection.execute('DELETE FROM users WHERE id = ?', [userId]);
+      if (deleteResult.affectedRows === 0) {
+        throw new Error('Failed to delete user');
+      }
+      console.log(`✅ User ${userId} deleted successfully`);
       
       await connection.commit();
       
       // Clear the authentication cookie
       res.clearCookie('token');
       
-      res.json({ success: true, message: 'Account deleted successfully' });
+      // Send account deletion email AFTER successful deletion
+      if (userInfo.length > 0) {
+        try {
+          const { sendAccountDeletionEmail } = require('./emailService');
+          await sendAccountDeletionEmail(
+            userInfo[0].email,
+            userInfo[0].FullName,
+            userInfo[0].username
+          );
+          console.log(`📧 Account deletion email sent to: ${userInfo[0].email}`);
+        } catch (emailError) {
+          console.log(`⚠️ Failed to send account deletion email:`, emailError.message);
+          // Don't fail the response if email fails
+        }
+      }
+      
+      console.log(`🎉 Account deletion completed successfully for user ${userId}`);
+      res.json({ 
+        success: true, 
+        message: 'Account deleted successfully',
+        details: {
+          userId: userId,
+          tablesCleaned: tablesToClean.length,
+          timestamp: new Date().toISOString()
+        }
+      });
     } catch (error) {
       await connection.rollback();
       throw error;
@@ -2791,6 +3261,8 @@ async function checkAndAwardBadges(userId, eventType, eventData) {
       );
       
       for (const badge of badges) {
+        console.log(`🔍 Checking badge: ${badge.name} (ID: ${badge.id}) for user ${userId}`);
+        
         // Check if user already has this badge
         const [existingBadge] = await connection.execute(
           'SELECT id FROM user_badges WHERE user_id = ? AND badge_id = ?',
@@ -2810,11 +3282,63 @@ async function checkAndAwardBadges(userId, eventType, eventData) {
                 [userId, badge.id, JSON.stringify(eventData)]
               );
               
+              // Get user email and full name for sending email
+              const [userInfo] = await connection.execute(
+                'SELECT email, FullName FROM users WHERE id = ?',
+                [userId]
+              );
+              
+              console.log(`🔍 User info for badge email:`, { userId, userInfo: userInfo[0] });
+              
               // Create notification for the new badge
               await connection.execute(`
                 INSERT INTO user_notifications (user_id, type, title, message, created_at, is_read)
                 VALUES (?, 'badge', ?, ?, NOW(), FALSE)
               `, [userId, `🏆 New Badge: ${badge.name}`, `Congratulations! You've earned the "${badge.name}" badge. Keep up the great work!`]);
+              
+              // Send badge earned email
+              if (userInfo.length > 0 && userInfo[0].email) {
+                try {
+                  console.log(`📧 Attempting to send badge earned email to: ${userInfo[0].email}`);
+                  console.log(`🏆 Badge data for email:`, {
+                    name: badge.name,
+                    description: badge.description,
+                    icon: badge.icon,
+                    rarity: badge.rarity,
+                    points_reward: badge.points_reward
+                  });
+                  
+                  // Test if email service is working
+                  console.log(`🧪 Testing email service import...`);
+                  const emailService = require('./emailService');
+                  console.log(`🧪 Email service imported:`, Object.keys(emailService));
+                  
+                  const { sendBadgeEarnedEmail } = emailService;
+                  console.log(`🧪 sendBadgeEarnedEmail function:`, typeof sendBadgeEarnedEmail);
+                  
+                  await sendBadgeEarnedEmail(
+                    userInfo[0].email,
+                    userInfo[0].FullName,
+                    badge.name,
+                    badge.description || 'Achievement unlocked!',
+                    badge.icon || 'https://img.icons8.com/color/96/000000/trophy.png',
+                    badge.rarity || 'common',
+                    badge.points_reward || 0
+                  );
+                  console.log(`✅ Badge earned email sent successfully to: ${userInfo[0].email}`);
+                } catch (emailError) {
+                  console.error(`❌ Failed to send badge earned email:`, emailError);
+                  console.error(`❌ Email error details:`, {
+                    message: emailError.message,
+                    stack: emailError.stack,
+                    userEmail: userInfo[0].email,
+                    badgeName: badge.name
+                  });
+                  // Don't fail badge awarding if email fails
+                }
+              } else {
+                console.log(`⚠️ No user info or email found for user ${userId}, skipping email`);
+              }
               
               console.log(`🏆 Awarded badge: ${badge.name} to user ${userId}`);
             } catch (error) {
@@ -3426,6 +3950,67 @@ app.delete('/api/notifications/clear', authenticateToken, async (req, res) => {
 
 // ==================== STREAK API ENDPOINTS ====================
 
+// Helper function to safely handle user streak operations
+async function safeRecordUserLogin(connection, user_id) {
+  try {
+    // First check if user_streaks record exists
+    const [existingStreak] = await connection.execute(
+      'SELECT * FROM user_streaks WHERE user_id = ?',
+      [user_id]
+    );
+
+    if (existingStreak.length === 0) {
+      // No existing record, create new one with ON DUPLICATE KEY UPDATE for safety
+      await connection.execute(`
+        INSERT INTO user_streaks (user_id, current_streak, longest_streak, last_login_date, streak_start_date)
+        VALUES (?, 1, 1, NOW(), NOW())
+        ON DUPLICATE KEY UPDATE
+          current_streak = VALUES(current_streak),
+          longest_streak = VALUES(longest_streak),
+          last_login_date = VALUES(last_login_date),
+          updated_at = NOW()
+      `, [user_id]);
+    } else {
+      // Record exists, update it
+      const now = new Date();
+      const lastLogin = existingStreak[0].last_login_date;
+      const lastLoginDate = lastLogin ? new Date(lastLogin) : null;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      if (lastLoginDate) {
+        lastLoginDate.setHours(0, 0, 0, 0);
+      }
+      
+      let newStreak = existingStreak[0].current_streak;
+      let newLongestStreak = existingStreak[0].longest_streak;
+      
+      if (!lastLoginDate || lastLoginDate < today) {
+        // Check if it's consecutive day
+        if (lastLoginDate && (today - lastLoginDate) / (1000 * 60 * 60 * 24) === 1) {
+          // Consecutive day, increment streak
+          newStreak += 1;
+          if (newStreak > newLongestStreak) {
+            newLongestStreak = newStreak;
+          }
+        } else {
+          // Gap of more than 1 day, reset streak
+          newStreak = 1;
+        }
+      }
+      
+      await connection.execute(`
+        UPDATE user_streaks 
+        SET current_streak = ?, longest_streak = ?, last_login_date = NOW(), updated_at = NOW()
+        WHERE user_id = ?
+      `, [newStreak, newLongestStreak, user_id]);
+    }
+  } catch (error) {
+    console.error('Error in safeRecordUserLogin:', error);
+    throw error;
+  }
+}
+
 // Record user login
 app.post('/api/streak/record-login', async (req, res) => {
   try {
@@ -3438,8 +4023,10 @@ app.post('/api/streak/record-login', async (req, res) => {
     const connection = await pool.getConnection();
     
     try {
-      // Record login
-      await connection.execute('CALL RecordUserLogin(?)', [user_id]);
+      // Use the safer login recording function
+      console.log(`📊 Recording login for user ${user_id}`);
+      await safeRecordUserLogin(connection, user_id);
+      console.log(`✅ Login recorded successfully for user ${user_id}`);
       
       // Check for first login badge
       await checkAndAwardBadges(user_id, 'login', { timestamp: new Date() });
@@ -3690,11 +4277,14 @@ app.get('/api/badges/category-progress', async (req, res) => {
 // Get comprehensive dashboard statistics
 app.get('/api/admin/dashboard-stats', authenticateAdmin, async (req, res) => {
   try {
+    console.log('🔍 Fetching dashboard statistics...');
     const connection = await pool.getConnection();
+    console.log('✅ Database connection established');
     
     // Get total users
     const [totalUsersResult] = await connection.query('SELECT COUNT(*) as count FROM users');
     const totalUsers = totalUsersResult[0].count;
+    console.log('👥 Total users:', totalUsers);
     
     // Get new users this month
     const [newUsersThisMonthResult] = await connection.query(`
@@ -3703,6 +4293,7 @@ app.get('/api/admin/dashboard-stats', authenticateAdmin, async (req, res) => {
       AND YEAR(created_at) = YEAR(CURRENT_DATE())
     `);
     const newUsersThisMonth = newUsersThisMonthResult[0].count;
+    console.log('📅 New users this month:', newUsersThisMonth);
     
     // Get new users this week
     const [newUsersThisWeekResult] = await connection.query(`
@@ -3710,6 +4301,7 @@ app.get('/api/admin/dashboard-stats', authenticateAdmin, async (req, res) => {
       WHERE YEARWEEK(created_at) = YEARWEEK(CURRENT_DATE())
     `);
     const newUsersThisWeek = newUsersThisWeekResult[0].count;
+    console.log('📅 New users this week:', newUsersThisWeek);
     
     // Get new users today
     const [newUsersTodayResult] = await connection.query(`
@@ -3717,6 +4309,7 @@ app.get('/api/admin/dashboard-stats', authenticateAdmin, async (req, res) => {
       WHERE DATE(created_at) = CURRENT_DATE()
     `);
     const newUsersToday = newUsersTodayResult[0].count;
+    console.log('📅 New users today:', newUsersToday);
     
     // Get active users (users who logged in within last 30 days)
     const [activeUsersResult] = await connection.query(`
@@ -3724,6 +4317,7 @@ app.get('/api/admin/dashboard-stats', authenticateAdmin, async (req, res) => {
       WHERE last_login_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
     `);
     const activeUsers = activeUsersResult[0].count;
+    console.log('🟢 Active users:', activeUsers);
     
     // Get total practice sessions
     const [totalSessionsResult] = await connection.query(`
@@ -3731,12 +4325,14 @@ app.get('/api/admin/dashboard-stats', authenticateAdmin, async (req, res) => {
       WHERE is_completed = 1
     `);
     const totalPracticeSessions = totalSessionsResult[0].count;
+    console.log('🧠 Total practice sessions:', totalPracticeSessions);
     
     // Get total scenarios and questions
     const [scenariosResult] = await connection.query('SELECT COUNT(*) as count FROM practice_scenarios WHERE is_active = 1');
     const [questionsResult] = await connection.query('SELECT COUNT(*) as count FROM practice_questions');
     const totalScenarios = scenariosResult[0].count;
     const totalQuestions = questionsResult[0].count;
+    console.log('📚 Total scenarios:', totalScenarios, 'Total questions:', totalQuestions);
     
     // Get average score
     const [avgScoreResult] = await connection.query(`
@@ -3744,6 +4340,7 @@ app.get('/api/admin/dashboard-stats', authenticateAdmin, async (req, res) => {
       WHERE is_completed = 1 AND score IS NOT NULL
     `);
     const averageScore = Math.round(avgScoreResult[0].avg_score || 0);
+    console.log('📊 Average score:', averageScore);
     
     // Get completion rate
     const [completionResult] = await connection.query(`
@@ -3755,12 +4352,23 @@ app.get('/api/admin/dashboard-stats', authenticateAdmin, async (req, res) => {
     const completionRate = completionResult[0].total > 0 
       ? Math.round((completionResult[0].completed / completionResult[0].total) * 100)
       : 0;
+    console.log('✅ Completion rate:', completionRate + '%');
     
     // Get content statistics
     const [booksResult] = await connection.query('SELECT COUNT(*) as count FROM books');
     const [blogsResult] = await connection.query('SELECT COUNT(*) as count FROM blogs');
+    const [roadmapsResult] = await connection.query(`
+      SELECT COUNT(*) as count FROM blogs 
+      WHERE LOWER(title) LIKE '%roadmap%' OR LOWER(title) LIKE '%learning path%'
+    `);
     const [toolsResult] = await connection.query('SELECT COUNT(*) as count FROM tools');
     const [learningResourcesResult] = await connection.query('SELECT COUNT(*) as count FROM learning_resources');
+    
+    console.log('📖 Books:', booksResult[0].count);
+    console.log('📝 Blogs:', blogsResult[0].count);
+    console.log('🗺️ Roadmaps:', roadmapsResult[0].count);
+    console.log('🔧 Tools:', toolsResult[0].count);
+    console.log('📚 Learning resources:', learningResourcesResult[0].count);
     
     // Calculate growth percentages (simplified - you can make this more sophisticated)
     const userGrowth = newUsersThisMonth > 0 ? 15.5 : 0; // Mock data
@@ -3782,6 +4390,7 @@ app.get('/api/admin/dashboard-stats', authenticateAdmin, async (req, res) => {
     const lastBackup = '2 hours ago';
     
     connection.release();
+    console.log('✅ Dashboard statistics fetched successfully');
     
     res.json({
       success: true,
@@ -3799,7 +4408,7 @@ app.get('/api/admin/dashboard-stats', authenticateAdmin, async (req, res) => {
         completionRate,
         completedScenarios: completionResult[0].completed,
         totalBooks: booksResult[0].count,
-        totalRoadmaps: 0, // Table doesn't exist yet
+        totalRoadmaps: roadmapsResult[0].count,
         totalBlogs: blogsResult[0].count,
         totalTools: toolsResult[0].count,
         totalLearningResources: learningResourcesResult[0].count,
@@ -3819,8 +4428,8 @@ app.get('/api/admin/dashboard-stats', authenticateAdmin, async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Error fetching dashboard stats:', error);
-    res.status(500).json({ success: false, message: 'Failed to fetch dashboard statistics' });
+    console.error('❌ Error fetching dashboard stats:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch dashboard statistics', error: error.message });
   }
 });
 
@@ -3849,7 +4458,7 @@ app.get('/api/admin/recent-activity', authenticateAdmin, async (req, res) => {
     const [recentContent] = await connection.query(`
       SELECT 'book' as type, title, created_at FROM books
       UNION ALL
-      SELECT 'blog' as type, title, created_at FROM blogs
+      SELECT 'blog' as type, title, date as created_at FROM blogs
       UNION ALL
       SELECT 'tool' as type, name as title, created_at FROM tools
       ORDER BY created_at DESC LIMIT 5

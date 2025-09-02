@@ -46,16 +46,24 @@ import PracticeScenarioPage from "./components/PracticeScenarioPage";
 import ChatbotDemo from "./components/ChatbotDemo";
 import PublicProfile from "./components/PublicProfile";
 import BadgesPage from "./components/BadgesPage";
+import EmailVerificationPage from "./components/EmailVerificationPage";
+import PageViewsTracker from "./components/PageViewsTracker";
 import { PublicRoute, ProtectedRoute } from "./components/ProtectedRoute";
+
 export default function App() {
   return (
     <BrowserRouter>
       <div className="min-h-screen flex flex-col">
-      <Routes>
+        {/* Page Views Tracker - tracks all page views */}
+        <PageViewsTracker />
+        
+        <Routes>
         {/* Public Routes - Redirect to dashboard if already logged in */}
         <Route path="/" element={<PublicRoute><LandingPage /></PublicRoute>} />
         <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
         <Route path="/signup" element={<PublicRoute><SignupPage /></PublicRoute>} />
+        <Route path="/verify-email" element={<EmailVerificationPage />} />
+        <Route path="/verify-email/:token" element={<EmailVerificationPage />} />
         <Route path="/features" element={<PublicRoute><FeaturesPage /></PublicRoute>} />
         <Route path="/terms" element={<TermsOfUse />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
@@ -84,6 +92,7 @@ export default function App() {
         <Route path="/badges" element={<ProtectedRoute><BadgesPage /></ProtectedRoute>} />
         <Route path="/chatbot-demo" element={<ProtectedRoute><ChatbotDemo /></ProtectedRoute>} />
         <Route path="/admin" element={<RequireAdminAuth />}>
+          <Route index element={<AdminDashboard />} />
           <Route element={<AdminDashboard />}>
             <Route path="blogs" element={<BlogsAdmin />} />
             <Route path="blogs/new" element={<BlogEditorPage />} />
@@ -99,6 +108,7 @@ export default function App() {
             <Route path="tool-practice" element={<ToolPracticeAdmin />} />
             <Route path="homelabs" element={<HomeLabsAdmin />} />
             <Route path="projects" element={<ProjectsAdmin />} />
+            <Route path="mock-interviews" element={<MockInterviewPage />} />
             <Route path="badges" element={<BadgeAdmin />} />
             <Route path="notifications" element={<NotificationAdmin />} />
           </Route>

@@ -19,20 +19,6 @@ import {
   FaExclamationTriangle,
   FaArrowUp,
   FaArrowDown,
-  FaGraduationCap,
-  FaShieldAlt,
-  FaNetworkWired,
-  FaBug,
-  FaSearch,
-  FaCode,
-  FaLaptop,
-  FaMobile,
-  FaDesktop,
-  FaGlobe,
-  FaFlag,
-  FaFire,
-  FaTrendingUp,
-  FaTrendingDown,
   FaCircle
 } from "react-icons/fa";
 import { BiBrain, BiTargetLock, BiDiamond } from "react-icons/bi";

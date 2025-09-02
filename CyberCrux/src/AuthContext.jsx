@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 const AuthContext = createContext();
 
@@ -13,38 +13,40 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [hasCheckedAuth, setHasCheckedAuth] = useState(false);
+
+  // Memoize the checkAuth function to prevent infinite loops
+  const checkAuth = useCallback(async () => {
+    // Prevent multiple simultaneous auth checks
+    if (hasCheckedAuth) return;
+    
+    try {
+      setHasCheckedAuth(true);
+      const response = await fetch('http://localhost:5000/api/auth/me', {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const userData = await response.json();
+        setUser(userData.user);
+      } else {
+        setUser(null);
+      }
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [hasCheckedAuth]);
 
   // Check if user is authenticated on app load
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const response = await fetch('http://localhost:5000/api/auth/me', {
-          credentials: 'include'
-        });
-        
-        if (response.ok) {
-          const userData = await response.json();
-          setUser(userData.user);
-        } else {
-          setUser(null);
-        }
-      } catch (error) {
-        console.error('Auth check failed:', error);
-        setUser(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    // Check if we're coming from Google OAuth callback
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('auth') === 'success') {
-      // We just logged in via Google OAuth, check auth status
-      checkAuth();
-    } else {
+    // Only check auth once on mount
+    if (!hasCheckedAuth) {
       checkAuth();
     }
-  }, []);
+  }, [checkAuth, hasCheckedAuth]);
 
   const login = (userData) => {
     setUser(userData);
@@ -52,6 +54,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     setUser(null);
+    setHasCheckedAuth(false); // Reset auth check flag
   };
 
   const value = {

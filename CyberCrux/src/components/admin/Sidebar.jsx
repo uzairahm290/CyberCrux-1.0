@@ -1,4 +1,4 @@
-import { FaBook, FaMap, FaTools, FaHome, FaList, FaBlog, FaPuzzlePiece, FaBars, FaProjectDiagram, FaGamepad, FaMedal, FaBell } from "react-icons/fa";
+import { FaBook, FaMap, FaTools, FaHome, FaList, FaBlog, FaPuzzlePiece, FaBars, FaProjectDiagram, FaGamepad, FaMedal, FaBell, FaUserTie } from "react-icons/fa";
 import { NavLink } from "react-router-dom";
 import { useState } from "react";
 
@@ -12,6 +12,7 @@ const navItems = [
   { label: "Tool Practice", icon: <FaGamepad />, to: "/admin/tool-practice" },
   { label: "HomeLabs", icon: <FaList />, to: "/admin/homelabs" },
   { label: "Projects", icon: <FaProjectDiagram />, to: "/admin/projects" },
+  { label: "Mock Interviews", icon: <FaUserTie />, to: "/admin/mock-interviews" },
   { label: "Badges", icon: <FaMedal />, to: "/admin/badges" },
   { label: "Notifications", icon: <FaBell />, to: "/admin/notifications" },
 ];
