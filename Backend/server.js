@@ -3757,10 +3757,10 @@ app.get('/api/admin/dashboard-stats', authenticateAdmin, async (req, res) => {
       : 0;
     
     // Get content statistics
-    const [booksResult] = await connection.query('SELECT COUNT(*) as count FROM books WHERE is_active = 1');
-    const [roadmapsResult] = await connection.query('SELECT COUNT(*) as count FROM roadmaps WHERE is_active = 1');
-    const [blogsResult] = await connection.query('SELECT COUNT(*) as count FROM blogs WHERE is_active = 1');
-    const [toolsResult] = await connection.query('SELECT COUNT(*) as count FROM tools WHERE is_active = 1');
+    const [booksResult] = await connection.query('SELECT COUNT(*) as count FROM books');
+    const [blogsResult] = await connection.query('SELECT COUNT(*) as count FROM blogs');
+    const [toolsResult] = await connection.query('SELECT COUNT(*) as count FROM tools');
+    const [learningResourcesResult] = await connection.query('SELECT COUNT(*) as count FROM learning_resources');
     
     // Calculate growth percentages (simplified - you can make this more sophisticated)
     const userGrowth = newUsersThisMonth > 0 ? 15.5 : 0; // Mock data
@@ -3799,9 +3799,10 @@ app.get('/api/admin/dashboard-stats', authenticateAdmin, async (req, res) => {
         completionRate,
         completedScenarios: completionResult[0].completed,
         totalBooks: booksResult[0].count,
-        totalRoadmaps: roadmapsResult[0].count,
+        totalRoadmaps: 0, // Table doesn't exist yet
         totalBlogs: blogsResult[0].count,
         totalTools: toolsResult[0].count,
+        totalLearningResources: learningResourcesResult[0].count,
         userGrowth,
         activeUserGrowth,
         practiceGrowth,
@@ -3846,11 +3847,11 @@ app.get('/api/admin/recent-activity', authenticateAdmin, async (req, res) => {
     
     // Get recent content additions
     const [recentContent] = await connection.query(`
-      SELECT 'book' as type, title, created_at FROM books WHERE is_active = 1
+      SELECT 'book' as type, title, created_at FROM books
       UNION ALL
-      SELECT 'roadmap' as type, title, created_at FROM roadmaps WHERE is_active = 1
+      SELECT 'blog' as type, title, created_at FROM blogs
       UNION ALL
-      SELECT 'blog' as type, title, created_at FROM blogs WHERE is_active = 1
+      SELECT 'tool' as type, name as title, created_at FROM tools
       ORDER BY created_at DESC LIMIT 5
     `);
     
