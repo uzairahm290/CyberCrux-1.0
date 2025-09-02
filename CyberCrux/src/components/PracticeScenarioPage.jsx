@@ -70,7 +70,9 @@ export default function PracticeScenarioPage() {
   const [showExplanation, setShowExplanation] = useState({});
   const [questionResults, setQuestionResults] = useState({});
   const [showHintNotification, setShowHintNotification] = useState(false);
+  const [showCustomNotification, setShowCustomNotification] = useState(false);
   const [currentHint, setCurrentHint] = useState('');
+  const [customNotificationMessage, setCustomNotificationMessage] = useState('');
 
   // Fetch scenario and questions from API
   useEffect(() => {
@@ -849,11 +851,11 @@ export default function PracticeScenarioPage() {
                         // All questions completed, finish the scenario
                         calculateScore();
                       } else {
-                        // Some questions not completed, show notification
-                        setCurrentHint('Please complete all questions before finishing the scenario.');
-                        setShowHintNotification(true);
+                        // Some questions not completed, show custom notification
+                        setCustomNotificationMessage('Please complete all questions before finishing the scenario.');
+                        setShowCustomNotification(true);
                         // Auto-hide after 5 seconds
-                        setTimeout(() => setShowHintNotification(false), 5000);
+                        setTimeout(() => setShowCustomNotification(false), 5000);
                       }
                     } else {
                       nextQuestion();
@@ -1113,6 +1115,33 @@ export default function PracticeScenarioPage() {
               </div>
               <button
                 onClick={() => setShowHintNotification(false)}
+                className="flex-shrink-0 text-gray-400 hover:text-white transition-colors"
+              >
+                <FaTimes className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Notification - Bottom Right */}
+      {showCustomNotification && (
+        <div className="fixed bottom-4 right-4 z-50 animate-slide-in-right">
+          <div className="bg-gradient-to-br from-red-500/20 to-pink-500/20 backdrop-blur-xl border border-red-500/30 rounded-2xl p-4 max-w-sm shadow-2xl shadow-red-500/25">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0">
+                <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-pink-500 rounded-full flex items-center justify-center">
+                  <FaExclamationTriangle className="w-5 h-5 text-white" />
+                </div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="text-sm font-semibold text-white mb-1">⚠️ Warning</h4>
+                <p className="text-sm text-gray-200 leading-relaxed">
+                  {customNotificationMessage}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowCustomNotification(false)}
                 className="flex-shrink-0 text-gray-400 hover:text-white transition-colors"
               >
                 <FaTimes className="w-4 h-4" />
