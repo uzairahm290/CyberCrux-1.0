@@ -1,0 +1,263 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                   Int       @id @default(autoincrement())
+  username             String    @unique @db.VarChar(50)
+  FullName             String    @db.VarChar(100)
+  email                String    @unique @db.VarChar(100)
+  password_hash        String    @db.VarChar(255)
+  created_at           DateTime? @default(now()) @db.Timestamp(6)
+  reset_token          String?   @db.VarChar(255)
+  reset_token_expires  DateTime? @db.Timestamp(6)
+  reset_token_expiry   BigInt?
+  google_id            String?   @unique @db.VarChar(255)
+  profile_pic          String?   @db.Text
+  country              String?   @db.VarChar(100)
+  description          String?   @db.Text
+  linkedin_url         String?   @db.VarChar(255)
+  github_url           String?   @db.VarChar(255)
+  verification_token   String?   @db.VarChar(255)
+  verification_expires DateTime? @db.Timestamp(6)
+  is_verified          Boolean?  @default(false)
+
+  user_badges            UserBadge[]
+  user_practice_progress UserPracticeProgress[]
+  user_streaks           UserStreak?
+  user_notifications     UserNotification[]
+
+  @@map("users")
+}
+
+model Badge {
+  id            Int       @id @default(autoincrement())
+  name          String    @db.VarChar(100)
+  description   String    @db.Text
+  icon          String?   @db.VarChar(500)
+  badge_type    String    @db.VarChar
+  criteria      Json
+  points_reward Int?      @default(0)
+  rarity        String?   @default("common") @db.VarChar
+  is_active     Boolean?  @default(true)
+  created_at    DateTime? @default(now()) @db.Timestamp(6)
+  updated_at    DateTime? @default(now()) @db.Timestamp(6)
+
+  user_badges   UserBadge[]
+
+  @@map("badges")
+}
+
+model UserBadge {
+  id            Int       @id @default(autoincrement())
+  user_id       Int
+  badge_id      Int
+  earned_at     DateTime? @default(now()) @db.Timestamp(6)
+  progress_data Json?
+
+  user          User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  badge         Badge     @relation(fields: [badge_id], references: [id], onDelete: Cascade)
+
+  @@map("user_badges")
+}
+
+model PracticeScenario {
+  id                Int       @id @default(autoincrement())
+  title             String    @db.VarChar(255)
+  category          String    @db.VarChar(100)
+  difficulty        String?   @default("Medium") @db.VarChar
+  time_estimate     String?   @default("15 min") @db.VarChar(50)
+  questions_count   Int?      @default(0)
+  points            Int?      @default(100)
+  completion_rate   Decimal?  @default(0.00) @db.Decimal(5, 2)
+  likes             Int?      @default(0)
+  views             Int?      @default(0)
+  description       String    @db.Text
+  is_featured       Boolean?  @default(false)
+  is_active         Boolean?  @default(true)
+  created_at        DateTime? @default(now()) @db.Timestamp(6)
+  updated_at        DateTime? @default(now()) @db.Timestamp(6)
+  file_url          String?   @db.VarChar(500)
+  short_description String?   @db.VarChar(500)
+  tags              Json?
+
+  practice_questions     PracticeQuestion[]
+  user_practice_progress UserPracticeProgress[]
+  learning_resources     LearningResource[]
+
+  @@map("practice_scenarios")
+}
+
+model PracticeQuestion {
+  id              Int       @id @default(autoincrement())
+  scenario_id     Int
+  question_text   String    @db.Text
+  correct_answer  String    @db.VarChar(500)
+  points          Int?      @default(10)
+  explanation     String?   @db.Text
+  question_order  Int?      @default(0)
+  created_at      DateTime? @default(now()) @db.Timestamp(6)
+
+  scenario        PracticeScenario @relation(fields: [scenario_id], references: [id], onDelete: Cascade)
+
+  @@map("practice_questions")
+}
+
+model PracticeCategory {
+  id              Int       @id @default(autoincrement())
+  key_name        String    @unique @db.VarChar(50)
+  label           String    @db.VarChar(100)
+  description     String?   @db.Text
+  color_gradient  String?   @default("from-blue-500 to-cyan-500") @db.VarChar(100)
+  count           Int?      @default(0)
+  created_at      DateTime? @default(now()) @db.Timestamp(6)
+  updated_at      DateTime? @default(now()) @db.Timestamp(6)
+
+  @@map("practice_categories")
+}
+
+model UserPracticeProgress {
+  id              Int       @id @default(autoincrement())
+  user_id         Int
+  scenario_id     Int
+  score           Int?      @default(0)
+  max_score       Int?      @default(0)
+  time_taken      Int?      @default(0)
+  is_completed    Boolean?  @default(false)
+  completed_at    DateTime? @db.Timestamp(6)
+  created_at      DateTime? @default(now()) @db.Timestamp(6)
+  updated_at      DateTime? @default(now()) @db.Timestamp(6)
+
+  user            User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  scenario        PracticeScenario @relation(fields: [scenario_id], references: [id], onDelete: Cascade)
+
+  @@map("user_practice_progress")
+}
+
+model UserStreak {
+  id                       Int       @id @default(autoincrement())
+  user_id                  Int       @unique
+  current_streak           Int?      @default(0)
+  longest_streak           Int?      @default(0)
+  last_login_date          DateTime? @db.Timestamp(6)
+  last_practice_date       DateTime? @db.Timestamp(6)
+  streak_start_date        DateTime? @db.Timestamp(6)
+  total_practice_questions Int?      @default(0)
+  total_points             Int?      @default(0)
+  created_at               DateTime? @default(now()) @db.Timestamp(6)
+  updated_at               DateTime? @default(now()) @db.Timestamp(6)
+
+  user                     User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("user_streaks")
+}
+
+model Tool {
+  id                Int       @id @default(autoincrement())
+  name              String    @db.VarChar(100)
+  description       String?   @db.Text
+  category          String?   @db.VarChar(50)
+  type              String?   @db.VarChar(100)
+  author            String?   @db.VarChar(100)
+  rating            Float?    @default(0)
+  downloads         Int?      @default(0)
+  featured          Boolean?  @default(false)
+  difficulty        String?   @db.VarChar(50)
+  license           String?   @db.VarChar(100)
+  website           String?   @db.VarChar(255)
+  commands          Json?
+  platforms         Json?
+  tutorials         Int?      @default(0)
+  practiceScenarios Int?      @default(0)
+  icon              String?   @db.VarChar(100)
+  how_to_use        String?   @db.Text
+  created_at        DateTime? @default(now()) @db.Timestamp(6)
+  updated_at        DateTime? @default(now()) @db.Timestamp(6)
+
+  @@map("tools")
+}
+
+model ToolPracticeScenario {
+  id                   Int       @id @default(autoincrement())
+  tool_name            String    @db.VarChar(100)
+  scenario_title       String    @db.VarChar(255)
+  scenario_description String    @db.Text
+  difficulty           String?   @default("Easy") @db.VarChar
+  correct_command      String    @db.VarChar(500)
+  command_pieces       Json
+  explanation          String?   @db.Text
+  is_active            Boolean?  @default(true)
+  created_at           DateTime? @default(now()) @db.Timestamp(6)
+  updated_at           DateTime? @default(now()) @db.Timestamp(6)
+
+  @@map("tool_practice_scenarios")
+}
+
+model LearningResource {
+  id              Int       @id @default(autoincrement())
+  scenario_id     Int
+  title           String    @db.VarChar(255)
+  url             String    @db.VarChar(500)
+  type            String    @db.VarChar
+  description     String?   @db.Text
+  created_at      DateTime? @default(now()) @db.Timestamp(6)
+
+  scenario        PracticeScenario @relation(fields: [scenario_id], references: [id], onDelete: Cascade)
+
+  @@map("learning_resources")
+}
+
+model Book {
+  id              Int       @id @default(autoincrement())
+  title           String    @db.VarChar(255)
+  description     String?   @db.Text
+  category        String    @db.VarChar(100)
+  author          String    @db.VarChar(255)
+  cover           String?   @db.VarChar(500)
+  pdf             String?   @db.VarChar(500)
+  rating          Decimal?  @default(0.00) @db.Decimal(3, 2)
+  downloads       Int?      @default(0)
+  read_time       String?   @db.VarChar(50)
+  pages           Int?
+  published       String?   @db.VarChar(10)
+  featured        Boolean?  @default(false)
+  created_at      DateTime? @default(now()) @db.Timestamp(6)
+  updated_at      DateTime? @default(now()) @db.Timestamp(6)
+
+  @@map("books")
+}
+
+model Blog {
+  id              Int       @id @default(autoincrement())
+  title           String    @db.VarChar(255)
+  author          String    @db.VarChar(100)
+  author_avatar   String?   @db.VarChar(500)
+  date            DateTime  @db.Date
+  read_time       String?   @db.VarChar(20)
+  category        String?   @db.VarChar(100)
+  tags            String?   @db.Text
+  excerpt         String?   @db.Text
+  content         String?   @db.Text
+  featured        Boolean?  @default(false)
+  views           Int?      @default(0)
+
+  @@map("blogs")
+}
+
+model UserNotification {
+  id              Int       @id @default(autoincrement())
+  user_id         Int
+  type            String?   @default("badge") @db.VarChar
+  title           String    @db.VarChar(255)
+  message         String    @db.Text
+  created_at      DateTime? @default(now()) @db.Timestamp(6)
+  is_read         Boolean?  @default(false)
+
+  user            User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("user_notifications")
+}
