@@ -1,3 +1,4 @@
+"use client";
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 const AuthContext = createContext();
@@ -22,7 +23,7 @@ export const AuthProvider = ({ children }) => {
     
     try {
       setHasCheckedAuth(true);
-      const response = await fetch(import.meta.env.VITE_API_URL + '/api/auth/me', {
+      const response = await fetch((process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555') + '/api/auth/me', {
         credentials: 'include'
       });
       
