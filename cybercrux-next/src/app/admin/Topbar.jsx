@@ -1,9 +1,7 @@
 "use client";
-import { FaUserCircle, FaSignOutAlt } from "react-icons/fa";
-import { useRouter, usePathname, useParams } from 'next/navigation';
-import Link from 'next/link';
-import NavLink from '@/components/ui/NavLink';
-import {useEffect } from "react";
+import { useState } from "react";
+import { FaUserCircle, FaSignOutAlt, FaShieldAlt } from "react-icons/fa";
+import { useRouter } from "next/navigation";
 
 const ADMIN_AUTH_KEY = "cybercrux_admin_logged_in";
 
@@ -13,41 +11,40 @@ export default function Topbar() {
 
   async function handleLogout() {
     setIsLoggingOut(true);
-    
     try {
-      // Clear backend session
-      await fetch(process.env.NEXT_PUBLIC_API_URL + '/api/admin/logout', {
-        method: 'POST',
-        credentials: 'include'
+      await fetch((process.env.NEXT_PUBLIC_API_URL || "http://localhost:5555") + "/api/admin/logout", {
+        method: "POST",
+        credentials: "include",
       });
     } catch (error) {
-      console.error('Logout error:', error);
-      // Continue with logout even if backend call fails
+      console.error("Logout error:", error);
     } finally {
-      // Clear local storage and redirect
       localStorage.removeItem(ADMIN_AUTH_KEY);
       router.push("/admin/login");
     }
   }
 
   return (
-    <header className="flex items-center justify-between px-6 py-4 bg-white shadow border-b border-blue-100">
-      <div className="text-lg font-bold text-[#0a2a4d]">Dashboard</div>
+    <header className="h-16 flex items-center justify-between px-6 bg-[#0C0C0C] border-b border-white/[0.06] shrink-0">
+      <div className="flex items-center gap-2 text-white/60 text-sm">
+        <FaShieldAlt className="text-red-500 text-xs" />
+        <span>Admin Dashboard</span>
+      </div>
       <div className="flex items-center gap-4">
-        <FaUserCircle className="text-3xl text-blue-400" />
+        <FaUserCircle className="text-2xl text-white/30" />
         <button
-          className={`flex items-center gap-2 font-semibold transition-colors ${
-            isLoggingOut 
-              ? 'text-gray-400 cursor-not-allowed' 
-              : 'text-blue-500 hover:text-blue-700'
-          }`}
           onClick={handleLogout}
           disabled={isLoggingOut}
+          className={`flex items-center gap-2 text-sm font-medium transition-colors ${
+            isLoggingOut
+              ? "text-white/20 cursor-not-allowed"
+              : "text-white/50 hover:text-red-400"
+          }`}
         >
-          <FaSignOutAlt /> 
-          {isLoggingOut ? 'Logging out...' : 'Logout'}
+          <FaSignOutAlt />
+          {isLoggingOut ? "Logging out..." : "Logout"}
         </button>
       </div>
     </header>
   );
-} 
+}

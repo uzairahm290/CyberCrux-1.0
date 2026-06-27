@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from 'next/navigation';
+import { useRouter } from "next/navigation";
+import { FaShieldAlt } from "react-icons/fa";
 
 const ADMIN_AUTH_KEY = "cybercrux_admin_logged_in";
 
@@ -21,9 +22,10 @@ export default function RequireAdminAuth({ children }) {
         router.replace("/admin/login");
         return;
       }
-      const response = await fetch((process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555') + '/api/admin/verify', {
-        credentials: 'include'
-      });
+      const response = await fetch(
+        (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5555") + "/api/admin/verify",
+        { credentials: "include" }
+      );
       if (response.ok) {
         setIsAuthenticated(true);
       } else {
@@ -32,7 +34,7 @@ export default function RequireAdminAuth({ children }) {
         router.replace("/admin/login");
       }
     } catch (error) {
-      console.error('Admin auth verification error:', error);
+      console.error("Admin auth verification error:", error);
       localStorage.removeItem(ADMIN_AUTH_KEY);
       setIsAuthenticated(false);
       router.replace("/admin/login");
@@ -49,10 +51,12 @@ export default function RequireAdminAuth({ children }) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-900">
-        <div className="text-center text-white">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto mb-4"></div>
-          <p>Verifying admin access...</p>
+      <div className="min-h-screen flex items-center justify-center bg-[#080808]">
+        <div className="text-center">
+          <div className="w-12 h-12 bg-red-600/20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <FaShieldAlt className="text-red-500 text-xl animate-pulse" />
+          </div>
+          <p className="text-white/50 text-sm">Verifying admin access...</p>
         </div>
       </div>
     );

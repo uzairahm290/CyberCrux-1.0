@@ -8,15 +8,22 @@ async function safeRecordUserLogin(connection, user_id) {
     });
 
     if (!existingStreak) {
-      await prisma.userStreak.create({
-        data: {
-          user_id: parseInt(user_id, 10),
-          current_streak: 1,
-          longest_streak: 1,
-          last_login_date: new Date(),
-          streak_start_date: new Date()
+      try {
+        await prisma.userStreak.create({
+          data: {
+            user_id: parseInt(user_id, 10),
+            current_streak: 1,
+            longest_streak: 1,
+            last_login_date: new Date(),
+            streak_start_date: new Date()
+          }
+        });
+      } catch (err) {
+        // If unique constraint fails, it means another concurrent request already created the streak. We can safely ignore it.
+        if (err.code !== 'P2002') {
+          throw err;
         }
-      });
+      }
     } else {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
