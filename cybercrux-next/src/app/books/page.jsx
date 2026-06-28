@@ -1,635 +1,591 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import DashNav from "@/layouts/DashNav";
-import Footer from "@/layouts/Footer";
-import { FaBook, FaDownload, FaSearch, FaFilter, FaStar, FaClock, FaUser, FaEye } from 'react-icons/fa';
-import { BiCategory, BiChevronRight } from 'react-icons/bi';
-import { useTheme } from "../../ThemeContext";
+import React, { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
+import { useRouter, usePathname } from 'next/navigation';
+import {
+  BiBrain, BiMicrophone, BiMap, BiBookOpen, BiWrench, BiLaptop,
+  BiMedal, BiTrophy, BiNews, BiHomeAlt, BiCode, BiSearch, BiStar,
+} from 'react-icons/bi';
+import {
+  FaBook, FaDownload, FaStar, FaClock, FaUser, FaEye, FaFire,
+} from 'react-icons/fa';
+import {
+  FiBell, FiSettings, FiUser, FiLogOut, FiChevronDown,
+  FiShield, FiMenu, FiX, FiSliders,
+} from 'react-icons/fi';
+import { useAuth } from '@/contexts/AuthContext';
+import FloatingChatWidget from '@/components/chatbot/FloatingChatWidget';
 
-// Default categories structure (will be populated from API)
-const defaultCategories = [
-  { id: 'all', name: 'All Books', icon: <FaBook className="w-4 h-4" />, count: 0 },
-  { id: 'beginner', name: 'Beginner', icon: <FaBook className="w-4 h-4" />, count: 0 },
-  { id: 'intermediate', name: 'Intermediate', icon: <FaBook className="w-4 h-4" />, count: 0 },
-  { id: 'advanced', name: 'Advanced', icon: <FaBook className="w-4 h-4" />, count: 0 },
-  { id: 'tools', name: 'Tools', icon: <FaBook className="w-4 h-4" />, count: 0 },
-  { id: 'forensics', name: 'Forensics', icon: <FaBook className="w-4 h-4" />, count: 0 },
+// ---------------------------------------------------------------------------
+// Static data
+// ---------------------------------------------------------------------------
+
+
+
+// ---------------------------------------------------------------------------
+// Nav links
+// ---------------------------------------------------------------------------
+
+const navLinks = [
+  { label: 'Dashboard',      href: '/dashboard',  Icon: BiHomeAlt    },
+  { label: 'Practice',       href: '/practice',   Icon: BiBrain      },
+  { label: 'Compete',        href: '/compete',    Icon: BiTrophy     },
+  { label: 'Mock Interview', href: '/interviews', Icon: BiMicrophone },
+  { label: 'Roadmaps',       href: '/roadmap',    Icon: BiMap        },
+  { label: 'Labs',           href: '/labs',       Icon: BiLaptop     },
+  { label: 'Books',          href: '/books',      Icon: BiBookOpen   },
+  { label: 'Tools',          href: '/tools',      Icon: BiWrench     },
+  { label: 'Projects',       href: '/projects',   Icon: BiCode       },
+  { label: 'Blog',           href: '/blog',       Icon: BiNews       },
+  { label: 'Badges',         href: '/badges',     Icon: BiMedal      },
 ];
 
-// Default books structure (will be populated from API)
-const defaultBooks = [
-  {
-    id: 1,
-    title: 'Cybersecurity Essentials',
-    description: 'A comprehensive guide for beginners in cybersecurity covering fundamental concepts, threats, and defense strategies.',
-    category: 'beginner',
-    author: 'Sarah Chen',
-    cover: 'https://img.icons8.com/ios-filled/100/000000/book.png',
-    pdf: '#',
-    rating: 4.8,
-    downloads: 1247,
-    readTime: '6-8 hours',
-    pages: 320,
-    published: '2024',
-    featured: true,
-  },
-  {
-    id: 2,
-    title: 'Advanced Penetration Testing',
-    description: 'Deep dive into advanced pentesting techniques, methodologies, and real-world scenarios for experienced security professionals.',
-    category: 'advanced',
-    author: 'Mike Rodriguez',
-    cover: 'https://i.postimg.cc/wMTyrVT0/48992298.jpg',
-    pdf: '#',
-    rating: 4.9,
-    downloads: 892,
-    readTime: '10-12 hours',
-    pages: 450,
-    published: '2024',
-    featured: true,
-  },
-  {
-    id: 3,
-    title: 'Digital Forensics Handbook',
-    description: 'Learn the basics of digital forensics, evidence collection, and analysis techniques for cyber investigations.',
-    category: 'forensics',
-    author: 'Dr. Emily Watson',
-    cover: 'https://img.icons8.com/ios-filled/100/000000/book.png',
-    pdf: '#',
-    rating: 4.7,
-    downloads: 567,
-    readTime: '8-10 hours',
-    pages: 380,
-    published: '2023',
-    featured: false,
-  },
-  {
-    id: 4,
-    title: 'Hacking Tools Explained',
-    description: 'Comprehensive overview of popular cybersecurity tools, their usage, and best practices for ethical hacking.',
-    category: 'tools',
-    author: 'Alex Thompson',
-    cover: 'https://img.icons8.com/ios-filled/100/000000/book.png',
-    pdf: '#',
-    rating: 4.6,
-    downloads: 734,
-    readTime: '5-7 hours',
-    pages: 280,
-    published: '2024',
-    featured: false,
-  },
-  {
-    id: 5,
-    title: 'Network Security Fundamentals',
-    description: 'Essential concepts and practices for securing network infrastructure and protecting against cyber threats.',
-    category: 'intermediate',
-    author: 'David Kim',
-    cover: 'https://img.icons8.com/ios-filled/100/000000/book.png',
-    pdf: '#',
-    rating: 4.5,
-    downloads: 445,
-    readTime: '7-9 hours',
-    pages: 350,
-    published: '2023',
-    featured: false,
-  },
-  {
-    id: 6,
-    title: 'Web Application Security',
-    description: 'Comprehensive guide to securing web applications, covering OWASP Top 10 and modern security practices.',
-    category: 'intermediate',
-    author: 'Lisa Wang',
-    cover: 'https://img.icons8.com/ios-filled/100/000000/book.png',
-    pdf: '#',
-    rating: 4.8,
-    downloads: 623,
-    readTime: '8-10 hours',
-    pages: 400,
-    published: '2024',
-    featured: true,
-  },
-  {
-    id: 7,
-    title: 'Cloud Security Architecture',
-    description: 'Advanced strategies for securing cloud environments across AWS, Azure, and Google Cloud platforms.',
-    category: 'advanced',
-    author: 'James Wilson',
-    cover: 'https://img.icons8.com/ios-filled/100/000000/book.png',
-    pdf: '#',
-    rating: 4.7,
-    downloads: 389,
-    readTime: '9-11 hours',
-    pages: 420,
-    published: '2024',
-    featured: false,
-  },
-  {
-    id: 8,
-    title: 'Red Team Operations',
-    description: 'Comprehensive guide to red team methodologies, tactics, and techniques for advanced security testing.',
-    category: 'ethical-hacking',
-    author: 'Maria Garcia',
-    cover: 'https://img.icons8.com/ios-filled/100/000000/book.png',
-    pdf: '#',
-    rating: 4.9,
-    downloads: 298,
-    readTime: '12-15 hours',
-    pages: 500,
-    published: '2024',
-    featured: true,
-  },
-];
+// ---------------------------------------------------------------------------
+// Category colour map for placeholder covers
+// ---------------------------------------------------------------------------
 
-const BookPage = () => {
+const CATEGORY_COLORS = {
+  beginner:     'bg-green-900/60 text-green-400',
+  intermediate: 'bg-blue-900/60 text-blue-400',
+  advanced:     'bg-red-900/60 text-red-400',
+  tools:        'bg-purple-900/60 text-purple-400',
+  forensics:    'bg-yellow-900/60 text-yellow-400',
+  default:      'bg-zinc-800 text-zinc-400',
+};
+
+function categoryColor(cat) {
+  return CATEGORY_COLORS[cat] || CATEGORY_COLORS.default;
+}
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+
+function StarRating({ rating }) {
+  return (
+    <span className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((s) => (
+        <FaStar
+          key={s}
+          className={`w-3 h-3 ${s <= Math.round(rating) ? 'text-yellow-400' : 'text-zinc-700'}`}
+        />
+      ))}
+      <span className="ml-1 text-xs text-zinc-400">{rating}</span>
+    </span>
+  );
+}
+
+function BookCoverPlaceholder({ book }) {
+  const initial = book.category ? book.category.charAt(0).toUpperCase() : 'B';
+  return (
+    <div className={`w-full h-full flex items-center justify-center text-2xl font-bold ${categoryColor(book.category)}`}>
+      {initial}
+    </div>
+  );
+}
+
+function BookCard({ book }) {
+  const isIconsCover = !book.cover || book.cover.includes('icons8');
+  return (
+    <div
+      className={`relative flex bg-[#0C0C0C] border rounded-xl overflow-hidden transition-all duration-200 hover:border-red-600/30 hover:shadow-lg hover:shadow-red-900/10 ${
+        book.featured ? 'border-yellow-600/30' : 'border-red-900/15'
+      }`}
+    >
+      {/* Featured left accent stripe */}
+      {book.featured && (
+        <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b from-yellow-500 to-yellow-700" />
+      )}
+
+      {/* Cover */}
+      <div className="w-24 flex-shrink-0 bg-zinc-900" style={{ minHeight: '160px' }}>
+        {!isIconsCover ? (
+          <img
+            src={book.cover}
+            alt={book.title}
+            className="w-full h-full object-cover"
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+          />
+        ) : (
+          <BookCoverPlaceholder book={book} />
+        )}
+      </div>
+
+      {/* Body */}
+      <div className="flex flex-col flex-1 p-4 gap-2 min-w-0">
+        {/* Badges */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wide ${categoryColor(book.category)}`}>
+            {book.category}
+          </span>
+          {book.featured && (
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-yellow-900/40 text-yellow-400 uppercase tracking-wide">
+              Featured
+            </span>
+          )}
+        </div>
+
+        {/* Title */}
+        <h3 className="text-sm font-bold text-white leading-snug line-clamp-2">{book.title}</h3>
+
+        {/* Author */}
+        <p className="text-[11px] text-zinc-500 flex items-center gap-1">
+          <FaUser className="w-2.5 h-2.5" />
+          {book.author}
+        </p>
+
+        {/* Stars */}
+        <StarRating rating={book.rating} />
+
+        {/* Meta pills */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="flex items-center gap-1 text-[10px] bg-zinc-900 border border-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full">
+            <FaClock className="w-2.5 h-2.5" />
+            {book.readTime}
+          </span>
+          <span className="flex items-center gap-1 text-[10px] bg-zinc-900 border border-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full">
+            <FaBook className="w-2.5 h-2.5" />
+            {book.pages}p
+          </span>
+        </div>
+
+        {/* Description */}
+        <p className="text-[11px] text-zinc-500 leading-relaxed line-clamp-2 flex-1">{book.description}</p>
+
+        {/* Download */}
+        <a
+          href={book.pdf || '#'}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-1 flex items-center justify-center gap-2 text-xs font-semibold bg-red-600/10 hover:bg-red-600/20 border border-red-600/30 hover:border-red-500/50 text-red-400 hover:text-red-300 py-2 px-3 rounded-lg transition-all duration-150"
+        >
+          <FaDownload className="w-3 h-3" />
+          Download PDF
+          <span className="text-zinc-500 font-normal">({(book.downloads || 0).toLocaleString()})</span>
+        </a>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
+export default function BookPage() {
+  const { user, logout } = useAuth();
+  const pathname = usePathname();
+  const router   = useRouter();
+
+  const [sidebarOpen,      setSidebarOpen]      = useState(false);
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  const [books,      setBooks]      = useState([]);
+  const [categories, setCategories] = useState([{ id: 'all', name: 'All Books' }]);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState(null);
+
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState('featured');
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
-  const [mobileCategoryMenuOpen, setMobileCategoryMenuOpen] = useState(false);
-  const [books, setBooks] = useState([]);
-  const [categories, setCategories] = useState(defaultCategories);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const { theme } = useTheme();
+  const [searchQuery,      setSearchQuery]       = useState('');
+  const [sortBy,           setSortBy]            = useState('featured');
 
-  // Fetch books and categories from API
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handle(e) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setUserDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // API fetch — preserves original logic
+  // ---------------------------------------------------------------------------
+
   const fetchData = async () => {
     try {
       setLoading(true);
       setError(null);
-      
-      console.log('🔍 Fetching books from API...');
-      
-      // Fetch books
-      const booksResponse = await fetch((process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555') + '/api/books');
-      console.log('📚 Books response status:', booksResponse.status);
-      
+
+      const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555';
+
+      const booksResponse = await fetch(`${base}/api/books`);
       if (!booksResponse.ok) {
         const errorText = await booksResponse.text();
         throw new Error(`Failed to fetch books: ${booksResponse.status} - ${errorText}`);
       }
-      
       const booksData = await booksResponse.json();
-      console.log('✅ Books fetched successfully:', booksData.length, 'books');
-      
-      // Fetch categories
-      console.log('🔍 Fetching categories from API...');
-      const categoriesResponse = await fetch((process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555') + '/api/books/categories');
-      console.log('📂 Categories response status:', categoriesResponse.status);
-      
+
+      const categoriesResponse = await fetch(`${base}/api/books/categories`);
       if (!categoriesResponse.ok) {
         const errorText = await categoriesResponse.text();
         throw new Error(`Failed to fetch categories: ${categoriesResponse.status} - ${errorText}`);
       }
-      
       const categoriesData = await categoriesResponse.json();
-      console.log('✅ Categories fetched successfully:', categoriesData.length, 'categories');
-      
-      // Transform categories data to include icons
-      const transformedCategories = categoriesData.map(cat => ({
-        ...cat,
-        icon: <FaBook className="w-4 h-4" />
-      }));
-      
+
       setBooks(booksData);
-      setCategories(transformedCategories);
+      setCategories(categoriesData);
     } catch (err) {
-      console.error('❌ Error fetching data:', err);
-      setError(`Connection Error: ${err.message}. Please make sure the backend server is running on http://localhost:5555`);
+      console.error('Error fetching data:', err);
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-    useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
-  // Filter and sort books
+  // No fallback to defaultBooks
+
+  // ---------------------------------------------------------------------------
+  // Filter + sort
+  // ---------------------------------------------------------------------------
+
   const filteredBooks = books
-    .filter(book => {
-      const matchesCategory = selectedCategory === 'all' || book.category === selectedCategory;
-      const matchesSearch = book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           book.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           book.author.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesCategory && matchesSearch;
+    .filter((b) => {
+      const matchesCat  = selectedCategory === 'all' || b.category === selectedCategory;
+      const q           = searchQuery.toLowerCase();
+      const matchSearch = !q ||
+        b.title.toLowerCase().includes(q) ||
+        b.description.toLowerCase().includes(q) ||
+        b.author.toLowerCase().includes(q);
+      return matchesCat && matchSearch;
     })
     .sort((a, b) => {
       switch (sortBy) {
-        case 'featured':
-          return b.featured - a.featured;
-        case 'rating':
-          return b.rating - a.rating;
-        case 'downloads':
-          return b.downloads - a.downloads;
-        case 'newest':
-          return b.published - a.published;
-        case 'title':
-          return a.title.localeCompare(b.title);
-        default:
-          return 0;
+        case 'featured':  return (b.featured ? 1 : 0) - (a.featured ? 1 : 0);
+        case 'rating':    return b.rating - a.rating;
+        case 'downloads': return b.downloads - a.downloads;
+        case 'newest':    return String(b.published).localeCompare(String(a.published));
+        case 'title':     return a.title.localeCompare(b.title);
+        default:          return 0;
       }
     });
 
-  const featuredBooks = books.filter(book => book.featured);
+  // ---------------------------------------------------------------------------
+  // Stats
+  // ---------------------------------------------------------------------------
+
+  const totalDownloads = books.reduce((s, b) => s + (b.downloads || 0), 0);
+  const avgRating =
+    books.length > 0
+      ? (books.reduce((s, b) => s + (b.rating || 0), 0) / books.length).toFixed(1)
+      : '0.0';
+
+  // ---------------------------------------------------------------------------
+  // Auth helpers
+  // ---------------------------------------------------------------------------
+
+  function handleLogout() {
+    logout?.();
+    router.push('/login');
+  }
+
+  const username    = user?.username || user?.name || 'User';
+  const userInitial = username.charAt(0).toUpperCase();
+  const streak      = user?.streak || 0;
+
+  // ---------------------------------------------------------------------------
+  // JSX
+  // ---------------------------------------------------------------------------
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-900 text-white">
-      <DashNav />
-      
-      {/* Animated Background */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl animate-pulse delay-500"></div>
-      </div>
+    <div className="flex h-screen bg-[#080808] text-white overflow-hidden">
 
-      <div className="relative z-10">
-        {/* Loading State */}
-        {loading && (
-          <div className="flex items-center justify-center min-h-screen">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
-              <p className="text-gray-300">Loading books...</p>
-            </div>
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/60 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Sidebar                                                              */}
+      {/* ------------------------------------------------------------------ */}
+      <aside
+        className={`fixed top-0 left-0 z-40 h-full w-60 bg-[#0C0C0C] border-r border-red-900/20 flex flex-col transition-transform duration-300 lg:translate-x-0 ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        {/* Logo */}
+        <div className="flex items-center gap-2.5 px-5 py-5 border-b border-red-900/20">
+          <FiShield className="w-6 h-6 text-red-500 flex-shrink-0" />
+          <span className="text-base font-bold tracking-wide text-white">CyberCrux</span>
+          <button
+            className="ml-auto lg:hidden text-zinc-500 hover:text-white"
+            onClick={() => setSidebarOpen(false)}
+          >
+            <FiX className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* User card */}
+        <div className="flex items-center gap-3 px-4 py-3 mx-3 mt-3 rounded-xl bg-zinc-900/60 border border-red-900/10">
+          <div className="w-8 h-8 rounded-full bg-red-600/20 border border-red-600/30 flex items-center justify-center text-red-400 font-bold text-sm flex-shrink-0">
+            {userInitial}
           </div>
-        )}
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-white truncate">{username}</p>
+            <p className="text-[10px] text-zinc-500 uppercase tracking-widest">Member</p>
+          </div>
+        </div>
 
-        {/* Error State */}
-        {error && (
-          <div className="flex items-center justify-center min-h-screen">
-            <div className="text-center max-w-md">
-              <div className="text-red-400 text-6xl mb-4">⚠️</div>
-              <h2 className="text-2xl font-bold text-white mb-2">Error Loading Books</h2>
-              <p className="text-gray-300 mb-4 text-sm">{error}</p>
-              <div className="space-y-3">
-                <button 
-                  onClick={() => {
-                    setError(null);
-                    setLoading(true);
-                    fetchData();
-                  }} 
-                  className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-6 py-3 rounded-xl font-bold transition-all duration-300 transform hover:scale-105"
-                >
-                  Try Again
-                </button>
-                <div className="text-xs text-gray-400">
-                  <p>Make sure:</p>
-                  <ul className="list-disc list-inside mt-1">
-                    <li>Backend server is running on port 5000</li>
-                    <li>Database is connected and accessible</li>
-                    <li>Books table exists with data</li>
-                  </ul>
+        {/* Nav links */}
+        <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-0.5">
+          {navLinks.map(({ label, href, Icon }) => {
+            const active = pathname === href || pathname.startsWith(href + '/');
+            return (
+              <Link
+                key={href}
+                href={href}
+                onClick={() => setSidebarOpen(false)}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150 relative ${
+                  active
+                    ? 'bg-red-600/12 text-red-400 border border-red-600/18'
+                    : 'text-zinc-400 hover:text-white hover:bg-white/5 border border-transparent'
+                }`}
+              >
+                {active && (
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 bg-red-500 rounded-r-full" />
+                )}
+                <Icon className="w-4 h-4 flex-shrink-0" />
+                <span className="font-medium">{label}</span>
+                {active && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-red-500" />}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Bottom: settings + logout */}
+        <div className="px-3 pb-4 space-y-0.5 border-t border-red-900/20 pt-3">
+          <Link
+            href="/settings"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-zinc-400 hover:text-white hover:bg-white/5 transition-all duration-150"
+          >
+            <FiSettings className="w-4 h-4" />
+            <span>Settings</span>
+          </Link>
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-zinc-400 hover:text-red-400 hover:bg-red-600/8 transition-all duration-150"
+          >
+            <FiLogOut className="w-4 h-4" />
+            <span>Logout</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Main area                                                            */}
+      {/* ------------------------------------------------------------------ */}
+      <div className="flex flex-col flex-1 lg:ml-60 overflow-hidden">
+
+        {/* Topbar */}
+        <header className="h-16 flex-shrink-0 flex items-center gap-4 px-5 bg-[#0A0A0A] border-b border-red-900/15">
+          <button
+            className="lg:hidden text-zinc-400 hover:text-white"
+            onClick={() => setSidebarOpen(true)}
+          >
+            <FiMenu className="w-5 h-5" />
+          </button>
+
+          <h1 className="text-base font-bold text-white">Library</h1>
+
+          <div className="ml-auto flex items-center gap-3">
+            {/* Streak pill */}
+            {streak > 0 && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-900/30 border border-orange-700/30">
+                <FaFire className="w-3.5 h-3.5 text-orange-400" />
+                <span className="text-xs font-semibold text-orange-300">{streak}</span>
+              </div>
+            )}
+
+            {/* Bell */}
+            <button className="relative w-9 h-9 rounded-lg flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/5 transition-all">
+              <FiBell className="w-4 h-4" />
+              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 rounded-full" />
+            </button>
+
+            {/* User dropdown */}
+            <div className="relative" ref={dropdownRef}>
+              <button
+                onClick={() => setUserDropdownOpen((v) => !v)}
+                className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 transition-all"
+              >
+                <div className="w-7 h-7 rounded-full bg-red-600/20 border border-red-600/30 flex items-center justify-center text-red-400 text-xs font-bold">
+                  {userInitial}
                 </div>
-              </div>
-            </div>
-          </div>
-        )}
+                <FiChevronDown className={`w-3.5 h-3.5 text-zinc-500 transition-transform ${userDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
 
-        {/* Content - Only show when not loading and no error */}
-        {!loading && !error && (
-          <>
-            {/* Hero Section */}
-            <section className="text-center py-16 px-4">
-          <div className="max-w-4xl mx-auto">
-            <div className="flex items-center justify-center mb-6">
-              <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
-                <FaBook className="text-2xl text-white" />
-              </div>
-            </div>
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 pb-3 bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-              Cybersecurity Books
-            </h1>
-            <p className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
-              Expand your knowledge with our curated collection of cybersecurity books. 
-              From beginner guides to advanced techniques, find the perfect resource for your learning journey.
-            </p>
-            <div className="flex items-center justify-center gap-4 text-sm text-gray-400">
-              <span className="flex items-center gap-2">
-                <FaBook className="w-4 h-4" />
-                {books.length} Books Available
-              </span>
-              <span className="flex items-center gap-2">
-                <FaDownload className="w-4 h-4" />
-                {books.reduce((total, book) => total + book.downloads, 0).toLocaleString()} Downloads
-              </span>
-            </div>
-          </div>
-        </section>
-
-        {/* Featured Books Section */}
-        {featuredBooks.length > 0 && (
-          <section className="px-4 mb-12">
-            <div className="max-w-7xl mx-auto">
-              <div className="flex items-center justify-between mb-8">
-                <h2 className="text-2xl font-bold text-white">Featured Books</h2>
-                <div className="flex items-center gap-2 text-sm text-gray-400">
-                  <FaStar className="w-4 h-4 text-yellow-400" />
-                  Most Popular
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {featuredBooks.map((book) => (
-                  <div
-                    key={book.id}
-                    className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl hover:shadow-blue-500/20 transition-all duration-300 hover:scale-105"
+              {userDropdownOpen && (
+                <div className="absolute right-0 mt-1 w-44 bg-[#0C0C0C] border border-red-900/20 rounded-xl shadow-xl z-50 overflow-hidden">
+                  <Link
+                    href="/profile"
+                    className="flex items-center gap-2.5 px-3 py-2.5 text-sm text-zinc-300 hover:text-white hover:bg-white/5 transition-all"
+                    onClick={() => setUserDropdownOpen(false)}
                   >
-                    <div className="flex items-start gap-4">
-                      <img
-                        src={book.cover}
-                        alt={book.title}
-                        className="w-16 h-20 object-cover rounded-lg shadow-lg"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded-full text-xs font-medium">
-                            Featured
-                          </span>
-                          <div className="flex items-center gap-1">
-                            <FaStar className="w-3 h-3 text-yellow-400" />
-                            <span className="text-sm text-gray-300">{book.rating}</span>
-                          </div>
-                        </div>
-                        <h3 className="font-bold text-lg mb-2 text-white line-clamp-2">{book.title}</h3>
-                        <p className="text-gray-400 text-sm mb-3 line-clamp-2">{book.description}</p>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-400">{book.author}</span>
-                          <button className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-all duration-300 transform hover:scale-105">
-                            Download
-                          </button>
-                        </div>
-                      </div>
+                    <FiUser className="w-3.5 h-3.5" />
+                    Profile
+                  </Link>
+                  <Link
+                    href="/settings"
+                    className="flex items-center gap-2.5 px-3 py-2.5 text-sm text-zinc-300 hover:text-white hover:bg-white/5 transition-all"
+                    onClick={() => setUserDropdownOpen(false)}
+                  >
+                    <FiSettings className="w-3.5 h-3.5" />
+                    Settings
+                  </Link>
+                  <div className="border-t border-red-900/20" />
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-zinc-300 hover:text-red-400 hover:bg-red-600/8 transition-all"
+                  >
+                    <FiLogOut className="w-3.5 h-3.5" />
+                    Logout
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </header>
+
+        {/* ---------------------------------------------------------------- */}
+        {/* Page content                                                       */}
+        {/* ---------------------------------------------------------------- */}
+        <main className="flex-1 overflow-y-auto">
+
+          {/* Loading */}
+          {loading && (
+            <div className="flex items-center justify-center min-h-[60vh]">
+              <div className="text-center">
+                <div className="w-10 h-10 border-2 border-red-600/30 border-t-red-500 rounded-full animate-spin mx-auto mb-4" />
+                <p className="text-sm text-zinc-500">Loading library...</p>
+              </div>
+            </div>
+          )}
+
+          {/* Non-blocking error banner — falls back to default data */}
+          {!loading && error && (
+            <div className="mx-6 mt-4 flex items-start gap-3 bg-red-900/10 border border-red-900/30 rounded-xl px-4 py-3">
+              <FiBell className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-red-300 font-medium">API unavailable — showing offline data</p>
+                <p className="text-[11px] text-zinc-500 truncate mt-0.5">{error}</p>
+              </div>
+              <button
+                onClick={() => { setError(null); fetchData(); }}
+                className="text-xs text-red-400 hover:text-red-300 font-medium flex-shrink-0"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
+          {/* Main content */}
+          {!loading && (
+            <div className="p-6 space-y-6">
+
+              {/* Stats strip */}
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { label: 'Total Books',     value: books.length,             icon: <BiBookOpen className="w-4 h-4" />, color: 'text-red-400'    },
+                  { label: 'Total Downloads', value: totalDownloads.toLocaleString(), icon: <FaDownload className="w-4 h-4" />, color: 'text-blue-400'   },
+                  { label: 'Avg Rating',      value: avgRating,                       icon: <FaStar className="w-4 h-4" />,     color: 'text-yellow-400' },
+                ].map(({ label, value, icon, color }) => (
+                  <div key={label} className="flex items-center gap-3 bg-[#0C0C0C] border border-red-900/15 rounded-xl px-4 py-3">
+                    <span className={color}>{icon}</span>
+                    <div>
+                      <p className="text-lg font-bold text-white leading-tight">{value}</p>
+                      <p className="text-[10px] text-zinc-500 uppercase tracking-wide">{label}</p>
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
-          </section>
-        )}
 
-        {/* Main Content */}
-        <section className="px-4 pb-16">
-          <div className="max-w-7xl mx-auto">
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-              {/* Desktop Sidebar */}
-              <div className="hidden lg:block lg:col-span-1">
-                <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl sticky top-8">
-                  <h3 className="text-xl font-bold mb-6 text-white">Categories</h3>
-                  <div className="space-y-2">
-                    {categories.map((category) => (
-                      <button
-                        key={category.id}
-                        onClick={() => setSelectedCategory(category.id)}
-                        className={`w-full flex items-center justify-between p-3 rounded-xl transition-all duration-300 ${
-                          selectedCategory === category.id
-                            ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
-                            : 'text-gray-300 hover:text-white hover:bg-white/10'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          {category.icon}
-                          <span className="font-medium">{category.name}</span>
-                        </div>
-                        <span className="text-sm bg-white/20 px-2 py-1 rounded-full">
-                          {category.count}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
+              {/* Filter bar */}
+              <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                {/* Category pills */}
+                <div className="flex items-center gap-2 flex-wrap flex-1">
+                  {categories.map((cat) => (
+                    <button
+                      key={cat.id}
+                      onClick={() => setSelectedCategory(cat.id)}
+                      className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-all duration-150 ${
+                        selectedCategory === cat.id
+                          ? 'bg-red-600/15 border-red-600/40 text-red-400'
+                          : 'bg-transparent border-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-white'
+                      }`}
+                    >
+                      {cat.name}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Search */}
+                <div className="relative w-full sm:w-56 flex-shrink-0">
+                  <BiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 w-4 h-4" />
+                  <input
+                    type="text"
+                    placeholder="Search books..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 text-sm bg-[#0C0C0C] border border-zinc-800 focus:border-red-600/40 rounded-lg text-white placeholder-zinc-600 outline-none transition-colors"
+                  />
+                </div>
+
+                {/* Sort */}
+                <div className="relative flex-shrink-0">
+                  <FiSliders className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 w-3.5 h-3.5 pointer-events-none" />
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="pl-9 pr-8 py-2 text-sm bg-[#0C0C0C] border border-zinc-800 focus:border-red-600/40 rounded-lg text-zinc-300 outline-none appearance-none cursor-pointer transition-colors"
+                  >
+                    <option value="featured">Featured</option>
+                    <option value="rating">Top Rated</option>
+                    <option value="downloads">Most Downloaded</option>
+                    <option value="newest">Newest</option>
+                    <option value="title">A - Z</option>
+                  </select>
                 </div>
               </div>
 
-              {/* Mobile Category Menu Button */}
-              <div className="lg:hidden fixed top-1/2 right-98 transform -translate-y-1/2 z-40">
-                <button
-                  onClick={() => setMobileCategoryMenuOpen(true)}
-                  className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white p-3 rounded-2xl shadow-lg transition-all duration-300 transform hover:scale-110"
-                  aria-label="Open Categories"
-                >
-                  <BiCategory className="w-6 h-6" />
-                </button>
-              </div>
+              {/* Result count */}
+              <p className="text-xs text-zinc-600">
+                Showing{' '}
+                <span className="text-zinc-400 font-medium">{filteredBooks.length}</span>{' '}
+                of {books.length} books
+              </p>
 
-              {/* Mobile Category Menu Overlay */}
-              {mobileCategoryMenuOpen && (
-                <div className="lg:hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={() => setMobileCategoryMenuOpen(false)}>
-                  <div 
-                    className="absolute top-1/2 left-4 transform -translate-y-1/2 w-64 bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-900/95 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl transform transition-all duration-300 ease-in-out"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="p-4">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-bold text-white">Categories</h3>
-              <button
-                          onClick={() => setMobileCategoryMenuOpen(false)}
-                          className="text-white hover:text-blue-400 transition-colors p-1"
-                          aria-label="Close Categories"
-                        >
-                          <BiChevronRight className="w-4 h-4 rotate-180" />
-              </button>
-                      </div>
-                      <div className="space-y-1 max-h-48 overflow-y-auto">
-                        {categories.map((category) => (
-                    <button
-                            key={category.id}
-                            onClick={() => {
-                              setSelectedCategory(category.id);
-                              setMobileCategoryMenuOpen(false);
-                            }}
-                            className={`w-full flex items-center justify-between p-2 rounded-lg transition-all duration-300 ${
-                              selectedCategory === category.id
-                                ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
-                                : 'text-gray-300 hover:text-white hover:bg-white/10'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2">
-                              {category.icon}
-                              <span className="font-medium text-sm">{category.name}</span>
-                            </div>
-                            <span className="text-xs bg-white/20 px-2 py-1 rounded-full">
-                              {category.count}
-                            </span>
-                    </button>
-                        ))}
-                      </div>
-                    </div>
+              {/* Books grid */}
+              {filteredBooks.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {filteredBooks.map((book) => (
+                    <BookCard key={book.id} book={book} />
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-20 text-center">
+                  <div className="w-14 h-14 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-4">
+                    <BiBookOpen className="w-6 h-6 text-zinc-600" />
                   </div>
+                  <h3 className="text-sm font-semibold text-zinc-400 mb-1">No books found</h3>
+                  <p className="text-xs text-zinc-600">Try adjusting your search or filter</p>
                 </div>
               )}
 
-              {/* Main Content Area */}
-              <div className="lg:col-span-3">
-                {/* Search and Filter Bar */}
-                <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl mb-8">
-                  <div className="flex flex-col sm:flex-row gap-4">
-                    {/* Search Bar */}
-                    <div className="flex-1 relative">
-                      <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                      <input
-                        type="text"
-                        placeholder="Search books by title, author, or description..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-                    
-                    {/* Sort Dropdown */}
-                    <select
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value)}
-                      className="px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="featured" className='text-black'>Featured First</option>
-                      <option value="rating" className='text-black'>Highest Rated</option>
-                      <option value="downloads" className='text-black'>Most Downloaded</option>
-                      <option value="newest" className='text-black'>Newest First</option>
-                      <option value="title" className='text-black'>Alphabetical</option>
-                    </select>
-
-                    {/* View Mode Toggle */}
-                    <div className="flex bg-white/10 rounded-xl p-1">
-                      <button
-                        onClick={() => setViewMode('grid')}
-                        className={`px-3 py-2 rounded-lg transition-all ${
-                          viewMode === 'grid' 
-                            ? 'bg-blue-500 text-white' 
-                            : 'text-gray-300 hover:text-white'
-                        }`}
-                      >
-                        Grid
-                      </button>
-                      <button
-                        onClick={() => setViewMode('list')}
-                        className={`px-3 py-2 rounded-lg transition-all ${
-                          viewMode === 'list' 
-                            ? 'bg-blue-500 text-white' 
-                            : 'text-gray-300 hover:text-white'
-                        }`}
-                      >
-                        List
-                      </button>
-                    </div>
             </div>
-          </div>
-
-                {/* Results Count */}
-                <div className="flex items-center justify-between mb-6">
-                  <p className="text-gray-400">
-                    Showing {filteredBooks.length} of {books.length} books
-                  </p>
-                </div>
-
-                {/* Books Grid/List */}
-                {viewMode === 'grid' ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {filteredBooks.map((book) => (
-                      <div
-                        key={book.id}
-                        className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl hover:shadow-blue-500/20 transition-all duration-300 hover:scale-105 flex flex-col h-full"
-                      >
-                        <div className="text-center flex-1 flex flex-col">
-                          <img
-                            src={book.cover}
-                            alt={book.title}
-                            className="w-24 h-32 object-cover rounded-lg shadow-lg mx-auto mb-4"
-                          />
-                          <div className="flex items-center justify-center gap-2 mb-3">
-                            <div className="flex items-center gap-1">
-                              <FaStar className="w-4 h-4 text-yellow-400" />
-                              <span className="text-sm text-gray-300">{book.rating}</span>
-                            </div>
-                            <span className="text-gray-500">•</span>
-                            <span className="text-sm text-gray-400">{book.downloads.toLocaleString()} downloads</span>
-                          </div>
-                          <h3 className="font-bold text-lg mb-2 text-white line-clamp-2">{book.title}</h3>
-                          <p className="text-gray-400 text-sm mb-4 line-clamp-3 flex-1">{book.description}</p>
-                          <div className="flex items-center justify-center gap-4 text-xs text-gray-400 mb-4">
-                            <span className="flex items-center gap-1">
-                              <FaUser className="w-3 h-3" />
-                              {book.author}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <FaClock className="w-3 h-3" />
-                              {book.readTime}
-                            </span>
-                          </div>
-                          <button className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 shadow-lg mt-auto">
-                            Download PDF
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {filteredBooks.map((book) => (
-                      <div
-                        key={book.id}
-                        className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl hover:shadow-blue-500/20 transition-all duration-300"
-                      >
-                        <div className="flex items-start gap-6">
-                          <img
-                            src={book.cover}
-                            alt={book.title}
-                            className="w-20 h-28 object-cover rounded-lg shadow-lg flex-shrink-0"
-                          />
-                          <div className="flex-1 min-w-0 flex flex-col">
-                            <div className="flex items-center gap-3 mb-2">
-                              <h3 className="font-bold text-xl text-white">{book.title}</h3>
-                              <div className="flex items-center gap-1">
-                                <FaStar className="w-4 h-4 text-yellow-400" />
-                                <span className="text-sm text-gray-300">{book.rating}</span>
-                              </div>
-                            </div>
-                            <p className="text-gray-400 mb-3 flex-1">{book.description}</p>
-                            <div className="flex items-center gap-6 text-sm text-gray-400 mb-4">
-                              <span className="flex items-center gap-2">
-                                <FaUser className="w-4 h-4" />
-                                {book.author}
-                              </span>
-                              <span className="flex items-center gap-2">
-                                <FaClock className="w-4 h-4" />
-                                {book.readTime}
-                              </span>
-                              <span className="flex items-center gap-2">
-                                <FaEye className="w-4 h-4" />
-                                {book.downloads.toLocaleString()} downloads
-                              </span>
-                              <span className="flex items-center gap-2">
-                                <BiCategory className="w-4 h-4" />
-                                {book.pages} pages
-                              </span>
-                            </div>
-                            <button className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-6 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 shadow-lg self-start">
-                              Download PDF
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* No Results */}
-                {filteredBooks.length === 0 && (
-                  <div className="text-center py-12">
-                    <FaBook className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-xl font-bold text-gray-300 mb-2">No books found</h3>
-                    <p className="text-gray-400">Try adjusting your search or filter criteria</p>
-                  </div>
-                )}
-              </div>
-            </div>
-        </div>
-        </section>
-          </>
-        )}
+          )}
+        </main>
       </div>
-      <Footer />
+
+      <FloatingChatWidget />
     </div>
   );
-};
-
-export default BookPage; 
+}

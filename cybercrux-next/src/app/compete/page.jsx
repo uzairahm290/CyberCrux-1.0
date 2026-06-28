@@ -1,466 +1,565 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { useRouter, useParams } from 'next/navigation';
-import { FiFlag, FiTrendingUp, FiAward, FiUsers, FiTarget } from "react-icons/fi";
-import { FaCrown, FaTrophy, FaMedal, FaFire, FaStar } from "react-icons/fa";
-import { BiBrain, BiMicrophone, BiLaptop, BiTrendingUp, BiDiamond } from "react-icons/bi";
-import hackerImg from "../../assets/hacker.png";
-import DashNav from "@/layouts/DashNav";
-import Footer from "@/layouts/Footer";
-import CountryFlag from "@/components/ui/CountryFlag";
-import { useTheme } from "../../ThemeContext";
+import React, { useState, useEffect, useRef } from "react";
+import Link from "next/link";
+import { useRouter, usePathname } from "next/navigation";
+import {
+  BiBrain, BiMicrophone, BiMap, BiBookOpen, BiWrench, BiLaptop,
+  BiMedal, BiTrophy, BiNews, BiHomeAlt, BiCode, BiTargetLock,
+  BiChevronUp, BiChevronDown as BiDown,
+} from "react-icons/bi";
+import {
+  FaCrown, FaFire, FaStar, FaMedal,
+} from "react-icons/fa";
+import {
+  FiBell, FiSettings, FiUser, FiLogOut, FiChevronDown,
+  FiShield, FiMenu, FiX, FiActivity, FiUsers, FiZap,
+} from "react-icons/fi";
 import { useAuth } from "@/contexts/AuthContext";
+import CountryFlag from "@/components/ui/CountryFlag";
+import FloatingChatWidget from "@/components/chatbot/FloatingChatWidget";
+
+const hackerImg = "/hacker.png";
+
+const navLinks = [
+  { label: "Dashboard",      href: "/dashboard",   icon: BiHomeAlt },
+  { label: "Practice",       href: "/practice",    icon: BiBrain },
+  { label: "Compete",        href: "/compete",     icon: BiTrophy },
+  { label: "Mock Interview", href: "/interviews",  icon: BiMicrophone },
+  { label: "Roadmaps",       href: "/roadmap",     icon: BiMap },
+  { label: "Labs",           href: "/labs",        icon: BiLaptop },
+  { label: "Books",          href: "/books",       icon: BiBookOpen },
+  { label: "Tools",          href: "/tools",       icon: BiWrench },
+  { label: "Projects",       href: "/projects",    icon: BiCode },
+  { label: "Blog",           href: "/blog",        icon: BiNews },
+  { label: "Badges",         href: "/badges",      icon: BiMedal },
+];
+
+const XP_PER_LEVEL = 100;
+
+/* rank tier styling */
+const tierFor = (rank) => {
+  if (rank === 1) return { label: "S", color: "#FFD700", glow: "rgba(255,215,0,0.35)", border: "border-yellow-500/40", bg: "bg-yellow-500/10" };
+  if (rank === 2) return { label: "A", color: "#C0C0C0", glow: "rgba(192,192,192,0.25)", border: "border-gray-400/40", bg: "bg-gray-500/10" };
+  if (rank === 3) return { label: "B", color: "#CD7F32", glow: "rgba(205,127,50,0.25)", border: "border-amber-600/40", bg: "bg-amber-700/10" };
+  if (rank <= 10) return { label: null, color: "#EF4444", glow: null, border: "border-red-900/20", bg: "" };
+  if (rank <= 50) return { label: null, color: "#9CA3AF", glow: null, border: "border-white/[0.05]", bg: "" };
+  return { label: null, color: "#4B5563", glow: null, border: "border-white/[0.03]", bg: "" };
+};
+
+const medalIcon = (rank) => {
+  if (rank === 1) return <FaCrown className="text-yellow-400 text-base" />;
+  if (rank === 2) return <FaMedal className="text-gray-300 text-base" />;
+  if (rank === 3) return <FaMedal className="text-amber-600 text-base" />;
+  return null;
+};
 
 export default function CompetePage() {
-  const { theme } = useTheme();
-  const { user } = useAuth();
-  const router = useRouter();
-  const [userStats, setUserStats] = useState({
-    rank: 0,
-    points: 0,
-    level: 1,
-    streak: 0
-  });
+  const router   = useRouter();
+  const pathname = usePathname();
+  const { user, logout } = useAuth();
+
+  const [sidebarOpen,  setSidebarOpen]  = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef(null);
+
   const [leaderboard, setLeaderboard] = useState([]);
-  const [profilePic, setProfilePic] = useState(null);
+  const [profilePic,  setProfilePic]  = useState(null);
+  const [loading,     setLoading]     = useState(true);
+  const [userStats, setUserStats] = useState({ rank: 0, points: 0, level: 1, streak: 0 });
+
+  const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5555";
 
   useEffect(() => {
-    const fetchProfilePic = async () => {
+    (async () => {
       try {
-        const response = await fetch((process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555') + '/api/auth/me', {
-          credentials: 'include'
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setProfilePic(data.user?.profile_pic || null);
-        } else {
-          setProfilePic(null);
-        }
-      } catch (error) {
-        setProfilePic(null);
-      }
-    };
-    fetchProfilePic();
+        const r = await fetch(`${API}/api/auth/me`, { credentials: "include" });
+        if (r.ok) { const d = await r.json(); setProfilePic(d.user?.profile_pic || null); }
+      } catch {}
+    })();
   }, []);
 
   useEffect(() => {
-    const fetchUserStats = async () => {
-      if (!user) return;
+    if (!user) return;
+    (async () => {
       try {
-        const statsResponse = await fetch((process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555') + '/api/practice/stats', {
-          credentials: 'include'
-        });
-        const statsData = await statsResponse.json();
-        
-        // Fetch streak data separately
-        const streakResponse = await fetch(`${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555')}/api/streak/user-streak/${user.id}`);
-        const streakData = await streakResponse.json();
-        
-        if (statsData.success) {
-          const stats = statsData.data.overview;
-          const totalPoints = stats.total_points_earned || 0;
-          const calculatedLevel = Math.floor(totalPoints / 100) + 1;
-          setUserStats({
-            rank: stats.rank || 1,
-            points: totalPoints,
-            level: calculatedLevel,
-            streak: streakData.streak?.current_streak || 0
-          });
+        const [sRes, stRes] = await Promise.allSettled([
+          fetch(`${API}/api/practice/stats`, { credentials: "include" }),
+          fetch(`${API}/api/streak/user-streak/${user.id}`),
+        ]);
+        let pts = 0, rank = 0, level = 1, streak = 0;
+        if (sRes.status === "fulfilled") {
+          const d = await sRes.value.json();
+          if (d.success) { pts = d.data.overview.total_points_earned || 0; rank = d.data.overview.rank || 0; level = Math.floor(pts / XP_PER_LEVEL) + 1; }
         }
-      } catch (err) {
-        console.error('Error fetching user stats:', err);
-      }
-    };
-    fetchUserStats();
+        if (stRes.status === "fulfilled") {
+          const d = await stRes.value.json();
+          streak = d.streak?.current_streak || 0;
+        }
+        setUserStats({ rank, points: pts, level, streak });
+      } catch {}
+    })();
   }, [user]);
 
-  const handleUsernameClick = (username) => {
-    router.push(`/profile/${username}`);
-  };
-
   useEffect(() => {
-    const fetchLeaderboard = async () => {
+    (async () => {
       try {
-        const response = await fetch((process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555') + '/api/practice/leaderboard');
-        const data = await response.json();
-        if (data.success) {
-          // Add calculated level for each user
-          const leaderboardWithLevel = data.data.map(user => ({
-            ...user,
-            level: Math.floor((user.total_points || 0) / 100) + 1
-          }));
-          setLeaderboard(leaderboardWithLevel);
+        setLoading(true);
+        const r = await fetch(`${API}/api/practice/leaderboard`);
+        const d = await r.json();
+        if (d.success) {
+          setLeaderboard(d.data.map(u => ({ ...u, level: Math.floor((u.total_points || 0) / XP_PER_LEVEL) + 1 })));
         }
-      } catch (err) {
-        console.error('Error fetching leaderboard:', err);
-      }
-    };
-    fetchLeaderboard();
+      } catch {}
+      finally { setLoading(false); }
+    })();
   }, []);
 
+  useEffect(() => {
+    const h = (e) => { if (userMenuRef.current && !userMenuRef.current.contains(e.target)) setUserMenuOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
+  const handleLogout = async () => {
+    try { await fetch(`${API}/api/auth/logout`, { method: "POST", credentials: "include" }); } catch {}
+    logout(); router.push("/login");
+  };
+
+  const isActive = (href) => pathname === href || (href !== "/" && pathname.startsWith(href));
+
+  const top3      = leaderboard.slice(0, 3);
+  const restList  = leaderboard.slice(3);
+  const xpInLevel = userStats.points % XP_PER_LEVEL;
+  const isRanked  = userStats.points > 0;
+
+  /* find current user in leaderboard */
+  const myRow = leaderboard.find(u => u.id === user?.id || u.username === user?.username);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-900 text-white">
-      <DashNav />
-      
-      {/* Animated Background */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl animate-pulse delay-500"></div>
-      </div>
+    <div className="flex h-screen bg-[#080808] text-white overflow-hidden">
 
-      <div className="relative z-10 p-3 sm:p-4 md:p-6 lg:p-8">
-        {/* Header Section */}
-        <div className="text-center mb-6 sm:mb-8">
-          <div className="inline-flex items-center gap-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-black px-3 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-bold mb-3 sm:mb-4">
-            <FaTrophy className="w-3 h-3 sm:w-4 sm:h-4" />
-            Global Competition
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm lg:hidden" onClick={() => setSidebarOpen(false)} />
+      )}
+
+      {/* ════ SIDEBAR ════ */}
+      <aside className={`
+        fixed lg:static inset-y-0 left-0 z-50
+        flex flex-col w-60 flex-shrink-0
+        bg-[#0C0C0C] border-r border-red-900/20
+        transition-transform duration-300 ease-in-out
+        ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+      `}>
+        <div className="flex items-center gap-3 h-16 px-5 border-b border-red-900/15 flex-shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center shadow-[0_0_16px_rgba(239,68,68,0.45)]">
+            <FiShield className="text-white text-sm" />
           </div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-3 sm:mb-4 bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-            Leaderboard
-          </h1>
-          <p className="text-gray-300 text-base sm:text-lg md:text-xl max-w-2xl mx-auto px-2">
-            Compete with cybersecurity professionals worldwide and climb the ranks
-          </p>
+          <span className="text-white font-bold tracking-tight">CyberCrux</span>
+          <button className="ml-auto p-1 rounded text-gray-600 hover:text-white lg:hidden" onClick={() => setSidebarOpen(false)}>
+            <FiX />
+          </button>
         </div>
 
-        {/* Top 3 Podium */}
-        <div className="mb-8 sm:mb-12 px-2">
-          <h2 className="text-xl sm:text-2xl font-bold text-center mb-4 sm:mb-6">🏆 Top Performers</h2>
-          
-          {/* Mobile Layout - Vertical Stack */}
-          <div className="block sm:hidden space-y-4">
-            {leaderboard.slice(0, 3).map((userItem, idx) => (
-              <div
-                key={userItem.user_rank}
-                className={`relative flex items-center gap-4 p-4 rounded-2xl border border-white/20 shadow-lg ${
-                  idx === 0 ? 'bg-gradient-to-br from-yellow-500/20 to-orange-500/20 border-yellow-400/30' :
-                  idx === 1 ? 'bg-gradient-to-br from-gray-500/20 to-gray-600/20 border-gray-400/30' :
-                  'bg-gradient-to-br from-amber-600/20 to-orange-700/20 border-amber-500/30'
-                }`}
-              >
-                {/* Rank Badge */}
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold flex-shrink-0 ${
-                  idx === 0 ? 'bg-yellow-400 text-black' :
-                  idx === 1 ? 'bg-gray-300 text-black' :
-                  'bg-amber-600 text-white'
-                }`}>
-                  {idx + 1}
-                </div>
-
-                {/* Avatar */}
-                <div className="relative flex-shrink-0">
-                  <div className={`relative rounded-full border-2 ${
-                    idx === 0 ? 'border-yellow-400' :
-                    idx === 1 ? 'border-gray-300' :
-                    'border-amber-500'
-                  } shadow-lg`}>
-                    <img
-                      src={userItem.profile_pic ? userItem.profile_pic : (user && user.id === userItem.id && profilePic ? profilePic : hackerImg)}
-                      alt={userItem.username}
-                      className="w-16 h-16 rounded-full object-cover"
-                    />
-                    <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white flex items-center justify-center text-xs font-bold ${
-                      idx === 0 ? 'bg-yellow-400 text-black' :
-                      idx === 1 ? 'bg-gray-300 text-black' :
-                      'bg-amber-600 text-white'
-                    }`}>
-                      {userItem.level}
-                    </div>
-                  </div>
-                  {idx === 0 && (
-                    <FaCrown className="absolute -top-2 left-1/2 -translate-x-1/2 text-yellow-300 text-xl drop-shadow-lg animate-bounce" />
-                  )}
-                </div>
-
-                {/* User Info */}
-                <div className="flex-1 min-w-0">
-                  <h3 
-                    className="font-bold text-lg mb-1 cursor-pointer hover:text-blue-400 transition-all duration-200"
-                    onClick={() => handleUsernameClick(userItem.username)}
-                    title="Click to view profile"
-                  >
-                    {userItem.username}
-                  </h3>
-                  
-                  <div className="flex items-center gap-2 text-gray-300 text-sm mb-2">
-                    <CountryFlag 
-                      country={userItem.country} 
-                      size="14px" 
-                      height="10px"
-                      title={userItem.country}
-                    />
-                    <span>{userItem.country}</span>
-                  </div>
-
-                  <div className="text-2xl font-bold text-cyan-300 mb-2">{userItem.total_points} points</div>
-                  
-                  <div className="flex gap-3">
-                    <div className="flex items-center gap-1 bg-orange-500/20 text-orange-300 px-2 py-1 rounded-full text-xs">
-                      <FaFire className="w-3 h-3" />
-                      {userItem.current_streak}
-                    </div>
-                    <div className="flex items-center gap-1 bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded-full text-xs">
-                      <FaStar className="w-3 h-3" />
-                      {userItem.badges}
-                    </div>
-                  </div>
-                </div>
-              </div>
-          ))}
-        </div>
-
-          {/* Desktop Layout - Horizontal Podium */}
-          <div className="hidden sm:flex justify-center items-end gap-4 sm:gap-4 md:gap-6 lg:gap-8">
-            {leaderboard.slice(0, 3).map((userItem, idx) => (
-              <div
-                key={userItem.user_rank}
-                className={`relative flex flex-col items-center ${
-                  idx === 0 ? 'order-2 scale-110 z-20' : idx === 1 ? 'order-1 scale-100 z-10' : 'order-3 scale-100 z-10'
-                } transition-all duration-500 hover:scale-105`}
-              >
-                {/* Podium Base */}
-                <div className={`w-full h-4 md:h-6 rounded-t-2xl ${
-                  idx === 0 ? 'bg-gradient-to-r from-yellow-400 to-orange-500' :
-                  idx === 1 ? 'bg-gradient-to-r from-gray-300 to-gray-500' :
-                  'bg-gradient-to-r from-amber-600 to-orange-700'
-                } shadow-lg`}></div>
-                
-                {/* User Card */}
-                <div className={`bg-white/10 backdrop-blur-xl rounded-2xl p-4 md:p-6 border border-white/20 shadow-2xl w-full max-w-[160px] md:max-w-[180px] lg:max-w-[200px] ${
-                  idx === 0 ? 'bg-gradient-to-br from-yellow-500/20 to-orange-500/20 border-yellow-400/30' :
-                  idx === 1 ? 'bg-gradient-to-br from-gray-500/20 to-gray-600/20 border-gray-400/30' :
-                  'bg-gradient-to-br from-amber-600/20 to-orange-700/20 border-amber-500/30'
-                }`}>
-                  {/* Crown for 1st */}
-                  {idx === 0 && (
-                    <FaCrown className="absolute -top-4 left-1/2 -translate-x-1/2 text-yellow-300 text-2xl md:text-3xl drop-shadow-lg animate-bounce" />
-                  )}
-                  
-                  {/* Rank Badge */}
-                  <div className={`absolute -top-2 -right-2 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                    idx === 0 ? 'bg-yellow-400 text-black' :
-                    idx === 1 ? 'bg-gray-300 text-black' :
-                    'bg-amber-600 text-white'
-                  }`}>
-                    {idx + 1}
-                  </div>
-
-                  {/* Avatar */}
-                  <div className="flex justify-center mb-4">
-                    <div className={`relative rounded-full border-4 ${
-                      idx === 0 ? 'border-yellow-400' :
-                      idx === 1 ? 'border-gray-300' :
-                      'border-amber-500'
-                    } shadow-lg`}>
-                      <img
-                        src={userItem.profile_pic ? userItem.profile_pic : (user && user.id === userItem.id && profilePic ? profilePic : hackerImg)}
-                        alt={userItem.username}
-                        className="w-16 h-16 md:w-20 md:h-20 rounded-full object-cover"
-                      />
-                      <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full border-2 border-white flex items-center justify-center text-xs font-bold ${
-                        idx === 0 ? 'bg-yellow-400 text-black' :
-                        idx === 1 ? 'bg-gray-300 text-black' :
-                        'bg-amber-600 text-white'
-                      }`}>
-                        {userItem.level}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Username */}
-                  <h3 
-                    className="font-bold text-center mb-2 text-sm md:text-base cursor-pointer hover:text-blue-400 transition-all duration-200"
-                    onClick={() => handleUsernameClick(userItem.username)}
-                    title="Click to view profile"
-                  >
-                    {userItem.username}
-                  </h3>
-                  
-                  {/* Country */}
-                  <div className="flex items-center justify-center gap-2 text-gray-300 text-xs mb-3">
-                    <CountryFlag 
-                      country={userItem.country} 
-                      size="14px" 
-                      height="10px"
-                      title={userItem.country}
-                    />
-                    <span>{userItem.country}</span>
-                  </div>
-
-                  {/* Points */}
-                  <div className="text-center mb-3">
-                    <div className="text-xl md:text-2xl lg:text-3xl font-bold text-cyan-300">{userItem.total_points}</div>
-                    <div className="text-xs text-gray-400">points</div>
-                  </div>
-
-                  {/* Stats */}
-                  <div className="flex justify-between text-xs text-gray-300">
-                    <div className="flex items-center gap-1">
-                      <FaFire className="w-3 h-3 text-orange-400" />
-                      {userItem.current_streak}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <FaStar className="w-3 h-3 text-yellow-400" />
-                      {userItem.badges}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Current User Stats */}
-        <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 rounded-2xl p-4 sm:p-6 mb-6 sm:mb-8 border border-white/20 mx-2">
-          <div className="flex flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3 sm:gap-4">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-                <BiDiamond className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
-              </div>
-              <div>
-                <h3 className="font-bold text-sm sm:text-lg">Your Position</h3>
-                <p className="text-gray-300 text-xs sm:text-sm">Keep climbing the ranks!</p>
+        <div className="px-4 py-4 border-b border-red-900/10">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-9 h-9 rounded-full bg-red-600/15 border border-red-600/25 flex items-center justify-center text-red-400 font-bold text-sm flex-shrink-0">
+              {user?.username?.[0]?.toUpperCase() || "U"}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-white truncate">{user?.username || "Hacker"}</p>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-red-400 font-medium bg-red-600/10 px-1.5 py-0.5 rounded border border-red-600/20">
+                  LVL {userStats.level}
+                </span>
+                <span className="text-[10px] text-gray-600">{userStats.points} XP</span>
               </div>
             </div>
-            <div className="flex gap-3 sm:gap-6">
-              <div className="text-center">
-                <div className="text-lg sm:text-xl md:text-2xl font-bold text-blue-400">
-                  {userStats.points > 0 ? `#${userStats.rank}` : 'Unranked'}
-                </div>
-                <div className="text-xs text-gray-400">Rank</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg sm:text-xl md:text-2xl font-bold text-green-400">{userStats.points}</div>
-                <div className="text-xs text-gray-400">Points</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg sm:text-xl md:text-2xl font-bold text-green-400">{userStats.level}</div>
-                <div className="text-xs text-gray-400">Level</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg sm:text-xl md:text-2xl font-bold text-orange-400">{userStats.streak}</div>
-                <div className="text-xs text-gray-400">Streak</div>
-              </div>
+          </div>
+          <div>
+            <div className="flex items-center justify-between text-[10px] text-gray-600 mb-1">
+              <span>{xpInLevel} / {XP_PER_LEVEL} XP to Level {userStats.level + 1}</span>
+            </div>
+            <div className="h-1 bg-[#1C1C1C] rounded-full overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-red-700 to-red-500 rounded-full transition-all duration-700"
+                style={{ width: `${Math.max(2, (xpInLevel / XP_PER_LEVEL) * 100)}%` }} />
             </div>
           </div>
         </div>
 
-        {/* Leaderboard Table */}
-        <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl overflow-hidden mx-2">
-          <div className="p-4 sm:p-6 border-b border-white/10">
-            <h2 className="text-lg sm:text-xl font-bold">Global Rankings</h2>
-            <p className="text-gray-300 text-xs sm:text-sm">Complete leaderboard of all participants</p>
-          </div>
-          
-          <div className="w-full">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-white/5 border-b border-white/10">
-                  <th className="text-left py-3 sm:py-4 px-2 sm:px-3 md:px-6 font-semibold text-gray-300 text-xs sm:text-sm">Rank</th>
-                  <th className="text-left py-3 sm:py-4 px-2 sm:px-3 md:px-6 font-semibold text-gray-300 text-xs sm:text-sm">Player</th>
-                  <th className="text-center py-3 sm:py-4 px-1 sm:px-2 md:px-6 font-semibold text-gray-300 text-xs sm:text-sm">Level</th>
-                  <th className="text-center py-3 sm:py-4 px-1 sm:px-2 md:px-6 font-semibold text-gray-300 text-xs sm:text-sm">Streak</th>
-                  <th className="text-center py-3 sm:py-4 px-1 sm:px-2 md:px-6 font-semibold text-gray-300 text-xs sm:text-sm">Badges</th>
-                  <th className="text-right py-3 sm:py-4 px-2 sm:px-3 md:px-6 font-semibold text-gray-300 text-xs sm:text-sm">Points</th>
-                </tr>
-              </thead>
-              <tbody>
-                {leaderboard.map((userItem, idx) => (
-                  <tr 
-                    key={userItem.user_rank} 
-                    className={`border-b border-white/5 transition-all duration-200 hover:bg-white/5 ${
-                      idx % 2 === 0 ? 'bg-white/2' : 'bg-transparent'
-                    }`}
-                  >
-                    <td className="py-3 sm:py-4 px-2 sm:px-3 md:px-6">
-                      <div className="flex items-center gap-2 sm:gap-3">
-                        <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-bold ${
-                          userItem.user_rank <= 10 ? 'bg-gradient-to-r from-purple-500 to-pink-500' :
-                          userItem.user_rank <= 50 ? 'bg-gradient-to-r from-blue-500 to-cyan-500' :
-                          'bg-gradient-to-r from-gray-500 to-gray-600'
-                        }`}>
-                          {userItem.user_rank}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3 sm:py-4 px-2 sm:px-3 md:px-6">
-                      <div className="flex items-center gap-2 sm:gap-3">
-                        <img
-                          src={userItem.profile_pic ? userItem.profile_pic : (user && user.id === userItem.id && profilePic ? profilePic : hackerImg)}
-                          alt={userItem.username}
-                          className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover border-2 border-white/20 hover:border-blue-400/50 scale-105 transition-all duration-200" 
-                        />
-                        <div>
-                          <div 
-                            className="font-semibold text-[10px] sm:text-sm cursor-pointer hover:text-blue-400 transition-all duration-200"
-                            onClick={() => handleUsernameClick(userItem.username)}
-                            title="Click to view profile"
-                          >
-                            {userItem.username}
-                          </div>
-                          <div className="flex items-center gap-1 sm:gap-2 text-gray-400 text-xs">
-                            <CountryFlag 
-                              country={userItem.country} 
-                              size="12px" 
-                              height="8px"
-                              title={userItem.country}
-                            />
-                            <span className="hidden sm:inline">{userItem.country}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3 sm:py-4 px-1 sm:px-2 md:px-6 text-center">
-                      <div className="inline-flex items-center gap-1 bg-blue-500/20 text-blue-300 px-1 sm:px-2 py-1 rounded-full text-xs sm:text-sm">
-                        <BiBrain className="w-2 h-2 sm:w-3 sm:h-3" />
-                        {userItem.level}
-                      </div>
-                    </td>
-                    <td className="py-3 sm:py-4 px-1 sm:px-2 md:px-6 text-center">
-                      <div className="inline-flex items-center gap-1 bg-orange-500/20 text-orange-300 px-1 sm:px-2 py-1 rounded-full text-xs sm:text-sm">
-                        <FaFire className="w-2 h-2 sm:w-3 sm:h-3" />
-                        {userItem.current_streak}
-                      </div>
-                    </td>
-                    <td className="py-3 sm:py-4 px-1 sm:px-2 md:px-6 text-center">
-                      <div className="inline-flex items-center gap-1 bg-yellow-500/20 text-yellow-300 px-1 sm:px-2 py-1 rounded-full text-xs sm:text-sm">
-                        <FaStar className="w-2 h-2 sm:w-3 sm:h-3" />
-                        {userItem.badges}
-                      </div>
-                    </td>
-                    <td className="py-3 sm:py-4 px-2 sm:px-3 md:px-6 text-right">
-                      <div className="font-bold text-cyan-300 text-xs sm:text-sm">{userItem.total_points}</div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <nav className="flex-1 px-2 py-3 overflow-y-auto space-y-0.5 scrollbar-hide">
+          {navLinks.map(({ label, href, icon: Icon }) => {
+            const active = isActive(href);
+            return (
+              <Link key={href} href={href} onClick={() => setSidebarOpen(false)}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group
+                  ${active ? "bg-red-600/12 text-red-400 border border-red-600/18" : "text-gray-500 hover:text-gray-200 hover:bg-white/[0.04]"}`}>
+                <Icon className={`text-base shrink-0 ${active ? "text-red-400" : "text-gray-600 group-hover:text-gray-400"}`} />
+                <span className="truncate">{label}</span>
+                {active && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.8)]" />}
+              </Link>
+            );
+          })}
+        </nav>
 
-        {/* Call to Action */}
-        <div className="mt-8 sm:mt-12 text-center px-2">
-          <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 rounded-2xl p-6 sm:p-8 border border-white/20">
-            <h3 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4">Ready to Compete?</h3>
-            <p className="text-gray-300 mb-4 sm:mb-6 max-w-2xl mx-auto text-sm sm:text-base">
-              Start practicing scenarios, complete labs, and ace interviews to climb the leaderboard and become a cybersecurity champion!
+        <div className="px-2 py-3 border-t border-red-900/10 space-y-0.5">
+          <Link href="/settings" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-500 hover:text-gray-200 hover:bg-white/[0.04] transition-colors">
+            <FiSettings className="text-base" /> Settings
+          </Link>
+          <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-red-500 hover:bg-red-600/10 transition-colors">
+            <FiLogOut className="text-base" /> Log out
+          </button>
+        </div>
+      </aside>
+
+      {/* ════ MAIN ════ */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+
+        {/* topbar */}
+        <header className="h-16 flex items-center gap-3 px-5 border-b border-red-900/15 bg-[#0A0A0A] flex-shrink-0">
+          <button className="lg:hidden p-2 rounded-md text-gray-600 hover:text-white hover:bg-white/5 transition-colors" onClick={() => setSidebarOpen(true)}>
+            <FiMenu className="text-base" />
+          </button>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-white leading-none">Global Rankings</p>
+            <p className="text-[11px] text-gray-600 mt-0.5 hidden sm:block">
+              {leaderboard.length} players competing worldwide
             </p>
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
-              <button className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-600 text-white px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all duration-300 transform hover:scale-105 shadow-lg text-sm sm:text-base">
-                <BiBrain className="w-4 h-4 sm:w-5 sm:h-5" />
-                Start Practicing
-              </button>
-              <button className="bg-white/10 backdrop-blur-xl text-white px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl font-bold border border-white/20 hover:bg-white/20 transition-all duration-300 transform hover:scale-105 text-sm sm:text-base">
-                View Challenges
-              </button>
+          </div>
+          {/* live indicator */}
+          <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-gray-500">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.8)] animate-pulse" />
+            Live
+          </div>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#141414] border border-orange-600/20 rounded-lg">
+            <FaFire className="text-orange-400 text-sm" />
+            <span className="text-sm font-bold text-white">{userStats.streak}</span>
+            <span className="text-[11px] text-gray-500 hidden sm:inline">streak</span>
+          </div>
+          <button className="relative p-2 rounded-lg text-gray-600 hover:text-white hover:bg-white/5 transition-colors">
+            <FiBell className="text-base" />
+          </button>
+          <div className="relative" ref={userMenuRef}>
+            <button onClick={() => setUserMenuOpen(o => !o)}
+              className="flex items-center gap-1.5 p-1.5 rounded-lg hover:bg-white/5 transition-colors focus:outline-none">
+              <div className="w-7 h-7 rounded-full bg-red-600/15 border border-red-600/25 flex items-center justify-center text-red-400 text-xs font-bold">
+                {user?.username?.[0]?.toUpperCase() || "U"}
+              </div>
+              <FiChevronDown className={`text-[11px] text-gray-500 transition-transform ${userMenuOpen ? "rotate-180" : ""}`} />
+            </button>
+            {userMenuOpen && (
+              <div className="absolute right-0 top-full mt-2 w-48 bg-[#101010] border border-red-900/20 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.6)] py-1.5 z-50">
+                <div className="px-3 py-2 border-b border-red-900/10 mb-1">
+                  <p className="text-xs font-semibold text-white truncate">{user?.username}</p>
+                  <p className="text-[11px] text-gray-600 truncate">{user?.email}</p>
+                </div>
+                {[
+                  { icon: FiUser,     label: "Profile",  href: `/profile/${user?.username}` },
+                  { icon: FiSettings, label: "Settings", href: "/settings" },
+                ].map(({ icon: Icon, label, href }) => (
+                  <Link key={href} href={href} onClick={() => setUserMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-3 py-2 text-xs text-gray-400 hover:text-white hover:bg-white/5 transition-colors">
+                    <Icon className="text-sm" /> {label}
+                  </Link>
+                ))}
+                <div className="my-1 h-px bg-red-900/10" />
+                <button onClick={handleLogout}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-500 hover:bg-red-600/10 transition-colors">
+                  <FiLogOut className="text-sm" /> Log out
+                </button>
+              </div>
+            )}
+          </div>
+        </header>
+
+        {/* scrollable content */}
+        <main className="flex-1 overflow-y-auto p-5 space-y-5">
+
+          {/* ── YOUR RANK CARD ── */}
+          <div className="relative overflow-hidden rounded-xl border border-red-900/30 bg-[#0F0F0F] p-5">
+            {/* background glow */}
+            <div className="absolute inset-0 bg-gradient-to-r from-red-950/40 via-transparent to-transparent pointer-events-none" />
+            <div className="absolute -right-12 -top-12 w-40 h-40 bg-red-600/6 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="relative flex flex-col sm:flex-row items-start sm:items-center gap-5">
+              {/* avatar + name */}
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <img
+                    src={profilePic || hackerImg}
+                    alt={user?.username}
+                    className="w-14 h-14 rounded-xl object-cover border-2 border-red-600/30"
+                  />
+                  <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-md bg-red-600 border border-[#0F0F0F] flex items-center justify-center text-[9px] font-bold text-white">
+                    {userStats.level}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[11px] text-gray-500 mb-0.5">YOUR POSITION</p>
+                  <p className="text-base font-bold text-white">{user?.username || "Hacker"}</p>
+                  <div className="mt-1 h-1 w-24 bg-[#1C1C1C] rounded-full overflow-hidden">
+                    <div className="h-full bg-red-500 rounded-full" style={{ width: `${Math.max(2, (xpInLevel / XP_PER_LEVEL) * 100)}%` }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* rank number — hero element */}
+              <div className="sm:ml-8 flex-shrink-0">
+                <p className="text-[10px] text-gray-600 uppercase tracking-widest mb-0.5">Global Rank</p>
+                <p className="text-5xl font-black leading-none" style={{ color: isRanked ? "#EF4444" : "#374151" }}>
+                  {isRanked ? `#${userStats.rank}` : "—"}
+                </p>
+              </div>
+
+              {/* divider */}
+              <div className="hidden sm:block w-px h-16 bg-white/[0.06] mx-4 flex-shrink-0" />
+
+              {/* stat chips */}
+              <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 flex-1">
+                {[
+                  { label: "Points",  value: userStats.points,  color: "#EF4444" },
+                  { label: "Level",   value: userStats.level,   color: "#F97316" },
+                  { label: "Streak",  value: `${userStats.streak}d`, color: "#FBBF24" },
+                ].map((s, i) => (
+                  <div key={i} className="flex-1 min-w-[70px] bg-[#141414] border border-white/[0.05] rounded-lg px-3 py-2.5 text-center">
+                    <p className="text-base font-bold" style={{ color: s.color }}>{s.value}</p>
+                    <p className="text-[10px] text-gray-600 mt-0.5">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* cta */}
+              <Link href="/practice"
+                className="flex-shrink-0 px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white text-xs font-semibold rounded-lg transition-colors shadow-[0_0_16px_rgba(239,68,68,0.2)] hover:shadow-[0_0_24px_rgba(239,68,68,0.35)]">
+                Keep Climbing →
+              </Link>
             </div>
           </div>
-        </div>
+
+          {/* ── TOP 3 CHAMPION STRIP ── */}
+          {top3.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {[top3[1], top3[0], top3[2]].filter(Boolean).map((u, visualIdx) => {
+                /* map visual order back to actual rank */
+                const actualRank = u.user_rank;
+                const isFirst    = actualRank === 1;
+                const colors     = {
+                  1: { border: "border-yellow-500/30", glow: "rgba(234,179,8,0.12)", label: "#FBBF24", crown: true },
+                  2: { border: "border-gray-500/25",   glow: "rgba(156,163,175,0.08)", label: "#9CA3AF", crown: false },
+                  3: { border: "border-amber-700/30",  glow: "rgba(180,83,9,0.1)",    label: "#D97706", crown: false },
+                }[actualRank];
+
+                return (
+                  <div
+                    key={u.user_rank}
+                    onClick={() => router.push(`/profile/${u.username}`)}
+                    className={`relative flex flex-col items-center gap-3 p-5 rounded-xl border ${colors.border} bg-[#0F0F0F] cursor-pointer hover:bg-[#141414] transition-all duration-200 ${isFirst ? "ring-1 ring-yellow-500/20 order-first sm:order-none" : ""}`}
+                    style={{ boxShadow: `0 0 32px ${colors.glow}` }}
+                  >
+                    {/* rank badge */}
+                    <div className="absolute top-3 right-3 w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-black"
+                      style={{ background: `${colors.label}18`, color: colors.label, border: `1px solid ${colors.label}30` }}>
+                      #{actualRank}
+                    </div>
+
+                    {colors.crown && (
+                      <FaCrown className="absolute -top-3 left-1/2 -translate-x-1/2 text-yellow-400 text-xl drop-shadow-[0_0_8px_rgba(234,179,8,0.8)]" />
+                    )}
+
+                    <div className="relative">
+                      <img src={u.profile_pic || (user?.id === u.id && profilePic) || hackerImg}
+                        alt={u.username}
+                        className="w-16 h-16 rounded-xl object-cover"
+                        style={{ border: `2px solid ${colors.label}40` }}
+                      />
+                      <div className="absolute -bottom-1.5 -right-1.5 w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-black text-white"
+                        style={{ background: colors.label }}>
+                        {u.level}
+                      </div>
+                    </div>
+
+                    <div className="text-center">
+                      <p className="text-sm font-bold text-white hover:text-red-400 transition-colors">{u.username}</p>
+                      {u.country && (
+                        <div className="flex items-center justify-center gap-1.5 mt-1">
+                          <CountryFlag country={u.country} size="12px" height="8px" />
+                          <span className="text-[10px] text-gray-600">{u.country}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="w-full h-px bg-white/[0.05]" />
+
+                    <div className="w-full flex items-center justify-between">
+                      <p className="text-lg font-black" style={{ color: colors.label }}>{u.total_points}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="flex items-center gap-1 text-[10px] text-orange-400">
+                          <FaFire className="text-[9px]" /> {u.current_streak}
+                        </span>
+                        <span className="flex items-center gap-1 text-[10px] text-yellow-400">
+                          <FaStar className="text-[9px]" /> {u.badges}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-gray-600 self-start -mt-2">points earned</p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* ── FULL LEADERBOARD ── */}
+          <div className="bg-[#0F0F0F] border border-white/[0.05] rounded-xl overflow-hidden">
+            {/* header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.05]">
+              <div>
+                <h2 className="text-sm font-semibold text-white">All Rankings</h2>
+                <p className="text-[11px] text-gray-600 mt-0.5">{leaderboard.length} total participants</p>
+              </div>
+              <div className="flex items-center gap-1.5 text-[11px] text-gray-600">
+                <FiUsers className="text-sm" />
+                <span>{leaderboard.length} players</span>
+              </div>
+            </div>
+
+            {/* column headers */}
+            <div className="grid grid-cols-[3rem_1fr_5rem_5rem_5rem_6rem] gap-0 px-5 py-2.5 border-b border-white/[0.04] bg-[#0A0A0A]">
+              {["#", "Player", "Level", "Streak", "Badges", "Points"].map((h, i) => (
+                <p key={h} className={`text-[10px] font-semibold text-gray-600 uppercase tracking-wider ${i > 1 ? "text-center" : ""} ${i === 5 ? "text-right" : ""}`}>
+                  {h}
+                </p>
+              ))}
+            </div>
+
+            {/* loading */}
+            {loading && (
+              <div className="flex flex-col items-center justify-center py-16">
+                <div className="w-7 h-7 border-2 border-red-600/30 border-t-red-500 rounded-full animate-spin mb-3" />
+                <p className="text-xs text-gray-600">Loading rankings...</p>
+              </div>
+            )}
+
+            {/* rows */}
+            {!loading && (
+              <div className="divide-y divide-white/[0.03]">
+                {leaderboard.map((u) => {
+                  const tier     = tierFor(u.user_rank);
+                  const isMe     = u.id === user?.id || u.username === user?.username;
+                  const rankIcon = medalIcon(u.user_rank);
+
+                  return (
+                    <div
+                      key={u.user_rank}
+                      onClick={() => router.push(`/profile/${u.username}`)}
+                      className={`grid grid-cols-[3rem_1fr_5rem_5rem_5rem_6rem] gap-0 px-5 py-3.5 items-center cursor-pointer transition-all duration-150
+                        ${isMe
+                          ? "bg-red-600/8 border-l-2 border-red-500 hover:bg-red-600/12"
+                          : "hover:bg-white/[0.025] border-l-2 border-transparent"
+                        }`}
+                    >
+                      {/* rank */}
+                      <div className="flex items-center gap-1.5">
+                        {rankIcon ? (
+                          rankIcon
+                        ) : (
+                          <span className="text-xs font-semibold" style={{ color: tier.color }}>
+                            {u.user_rank}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* player */}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <img
+                          src={u.profile_pic || (isMe && profilePic) || hackerImg}
+                          alt={u.username}
+                          className="w-8 h-8 rounded-lg object-cover flex-shrink-0"
+                          style={{ border: `1px solid ${tier.color}30` }}
+                        />
+                        <div className="min-w-0">
+                          <p className={`text-sm font-semibold truncate ${isMe ? "text-red-400" : "text-gray-200"}`}>
+                            {u.username}
+                            {isMe && <span className="ml-2 text-[9px] font-medium bg-red-600/20 text-red-400 px-1.5 py-0.5 rounded border border-red-600/20 align-middle">YOU</span>}
+                          </p>
+                          {u.country && (
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <CountryFlag country={u.country} size="10px" height="7px" />
+                              <span className="text-[10px] text-gray-600 truncate">{u.country}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* level */}
+                      <div className="text-center">
+                        <span className="text-xs font-semibold text-blue-400 bg-blue-600/10 border border-blue-600/20 px-2 py-0.5 rounded">
+                          {u.level}
+                        </span>
+                      </div>
+
+                      {/* streak */}
+                      <div className="text-center">
+                        <span className="flex items-center justify-center gap-1 text-[11px] text-orange-400">
+                          <FaFire className="text-[9px]" /> {u.current_streak}
+                        </span>
+                      </div>
+
+                      {/* badges */}
+                      <div className="text-center">
+                        <span className="flex items-center justify-center gap-1 text-[11px] text-yellow-400">
+                          <FaStar className="text-[9px]" /> {u.badges}
+                        </span>
+                      </div>
+
+                      {/* points */}
+                      <div className="text-right">
+                        <p className="text-sm font-bold" style={{ color: u.user_rank <= 3 ? tier.color : u.user_rank <= 10 ? "#EF4444" : "#9CA3AF" }}>
+                          {u.total_points}
+                        </p>
+                        <p className="text-[9px] text-gray-700">pts</p>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {leaderboard.length === 0 && !loading && (
+                  <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <BiTrophy className="text-4xl text-gray-700 mb-3" />
+                    <p className="text-sm text-gray-500">No rankings yet</p>
+                    <p className="text-xs text-gray-700 mt-1">Complete practice scenarios to appear here</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* ── CTA ── */}
+          <div className="relative overflow-hidden bg-[#0F0F0F] border border-red-900/25 rounded-xl p-6">
+            <div className="absolute -top-8 -right-8 w-40 h-40 bg-red-600/8 rounded-full blur-3xl pointer-events-none" />
+            <div className="relative flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-bold text-white mb-1">Climb the Ranks</h3>
+                <p className="text-xs text-gray-500">
+                  Every scenario you complete earns XP — keep going to crack the top 10.
+                </p>
+              </div>
+              <div className="flex gap-2 flex-shrink-0">
+                <Link href="/practice"
+                  className="px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white text-xs font-semibold rounded-lg transition-colors shadow-[0_0_20px_rgba(239,68,68,0.2)]">
+                  Start Practicing
+                </Link>
+                <Link href="/roadmap"
+                  className="px-4 py-2.5 bg-[#1A1A1A] hover:bg-[#222] text-gray-300 text-xs font-semibold rounded-lg border border-white/[0.07] hover:border-white/[0.12] transition-colors">
+                  View Roadmaps
+                </Link>
+              </div>
+            </div>
+          </div>
+
+        </main>
       </div>
-      
-      <Footer />
+
+      <FloatingChatWidget />
     </div>
   );
 }

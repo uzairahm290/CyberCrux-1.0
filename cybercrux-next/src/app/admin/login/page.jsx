@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter } from "next/navigation";
+import { FaShieldAlt, FaLock } from "react-icons/fa";
+
 const ADMIN_AUTH_KEY = "cybercrux_admin_logged_in";
 
 export default function AdminLogin() {
@@ -9,57 +11,51 @@ export default function AdminLogin() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  // Check if already logged in
   useEffect(() => {
     const checkAdminAuth = async () => {
       try {
-        const response = await fetch((process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555') + '/api/admin/verify', {
-          credentials: 'include'
-        });
-        
+        const response = await fetch(
+          (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5555") + "/api/admin/verify",
+          { credentials: "include" }
+        );
         if (response.ok) {
           router.push("/admin/blogs");
         }
-      } catch (error) {
-        // Not authenticated, stay on login page
+      } catch {
+        // not authenticated
       }
     };
-
     checkAdminAuth();
   }, [router]);
 
   function handleChange(e) {
     const { name, value } = e.target;
     setForm(f => ({ ...f, [name]: value }));
-    setError(""); // Clear error when user types
+    setError("");
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
     setLoading(true);
     setError("");
-
     try {
-      const response = await fetch((process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555') + '/api/admin/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(form)
-      });
-
+      const response = await fetch(
+        (process.env.NEXT_PUBLIC_API_URL || "http://localhost:5555") + "/api/admin/login",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(form),
+        }
+      );
       const data = await response.json();
-
       if (response.ok && data.success) {
-        // Set local flag for frontend routing
         localStorage.setItem(ADMIN_AUTH_KEY, "true");
         router.push("/admin/blogs");
       } else {
         setError(data.message || "Login failed");
       }
-    } catch (error) {
-      console.error('Login error:', error);
+    } catch {
       setError("Network error. Please try again.");
     } finally {
       setLoading(false);
@@ -67,60 +63,73 @@ export default function AdminLogin() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 to-blue-300">
-      <form
-        className="bg-white rounded-xl shadow-lg p-8 w-full max-w-md flex flex-col gap-6 border border-blue-200"
-        onSubmit={handleSubmit}
-      >
-        <h1 className="text-2xl font-bold text-center text-blue-700 mb-2">Admin Login</h1>
-        
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-center">
-            {error}
+    <div className="min-h-screen flex items-center justify-center bg-[#080808]">
+      <div className="w-full max-w-md px-4">
+        <div className="flex flex-col items-center mb-8">
+          <div className="w-14 h-14 bg-red-600/20 border border-red-600/30 rounded-2xl flex items-center justify-center mb-4">
+            <FaShieldAlt className="text-red-500 text-2xl" />
           </div>
-        )}
-        
-        <div className="space-y-4">
-          <input
-            className="border border-gray-300 p-3 rounded-lg text-lg w-full focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Username"
-            name="username"
-            value={form.username}
-            onChange={handleChange}
-            autoComplete="username"
-            required
-            disabled={loading}
-          />
-          <input
-            className="border border-gray-300 p-3 rounded-lg text-lg w-full focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Password"
-            name="password"
-            type="password"
-            value={form.password}
-            onChange={handleChange}
-            autoComplete="current-password"
-            required
-            disabled={loading}
-          />
+          <h1 className="text-2xl font-bold text-white">Admin Access</h1>
+          <p className="text-white/40 text-sm mt-1">CyberCrux Control Panel</p>
         </div>
-        
-        <button
-          type="submit"
-          disabled={loading}
-          className={`w-full font-bold py-3 rounded-lg transition ${
-            loading 
-              ? 'bg-gray-400 cursor-not-allowed' 
-              : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800'
-          } text-white`}
+
+        <form
+          onSubmit={handleSubmit}
+          className="bg-[#0F0F0F] border border-white/[0.07] rounded-2xl p-8 flex flex-col gap-5"
         >
-          {loading ? 'Logging in...' : 'Login'}
-        </button>
-        
-        <div className="text-center text-sm text-gray-600">
-          <p>🔒 Secure admin access</p>
-          <p>Rate limited • Session based • HTTP-only cookies</p>
-        </div>
-      </form>
+          {error && (
+            <div className="bg-red-600/10 border border-red-600/20 text-red-400 px-4 py-3 rounded-lg text-sm text-center">
+              {error}
+            </div>
+          )}
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-white/60 text-sm font-medium">Username</label>
+            <input
+              className="bg-[#080808] border border-white/[0.07] rounded-lg px-4 py-3 text-white placeholder:text-white/25 focus:outline-none focus:border-red-600/40 transition-colors"
+              placeholder="admin"
+              name="username"
+              value={form.username}
+              onChange={handleChange}
+              autoComplete="username"
+              required
+              disabled={loading}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-white/60 text-sm font-medium">Password</label>
+            <input
+              className="bg-[#080808] border border-white/[0.07] rounded-lg px-4 py-3 text-white placeholder:text-white/25 focus:outline-none focus:border-red-600/40 transition-colors"
+              placeholder="••••••••"
+              name="password"
+              type="password"
+              value={form.password}
+              onChange={handleChange}
+              autoComplete="current-password"
+              required
+              disabled={loading}
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className={`w-full flex items-center justify-center gap-2 font-semibold py-3 rounded-lg transition-colors ${
+              loading
+                ? "bg-white/[0.05] text-white/30 cursor-not-allowed"
+                : "bg-red-600 hover:bg-red-700 text-white"
+            }`}
+          >
+            <FaLock className="text-sm" />
+            {loading ? "Verifying..." : "Login"}
+          </button>
+
+          <p className="text-center text-xs text-white/20">
+            Session-based · HTTP-only cookies · Rate limited
+          </p>
+        </form>
+      </div>
     </div>
   );
-} 
+}
