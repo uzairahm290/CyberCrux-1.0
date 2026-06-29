@@ -25,7 +25,7 @@ import {
   FaTools,
   FaGraduationCap,
 } from "react-icons/fa";
-import { useTheme } from "../../ThemeContext";
+import { useTheme } from "@/contexts/ThemeContext";
 
 export default function HomeLabViewPage() {
   const { id } = useParams();

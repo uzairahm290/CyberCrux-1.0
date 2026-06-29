@@ -1,116 +1,174 @@
 "use client";
 
-import MainNav from "@/layouts/MainNav";
-import Footer from "@/layouts/Footer";
-import { FiKey } from "react-icons/fi";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
+import { FiMail, FiTerminal, FiShield, FiChevronRight, FiCheck } from "react-icons/fi";
+import DOMPurify from "dompurify";
+
+/* ── Typewriter Effect Component ── */
+function TypewriterText({ text, delay = 0, onComplete }) {
+  const [displayed, setDisplayed] = useState("");
+
+  useEffect(() => {
+    let timeout;
+    let i = 0;
+    const type = () => {
+      if (i < text.length) {
+        setDisplayed((prev) => prev + text.charAt(i));
+        i++;
+        timeout = setTimeout(type, 30 + Math.random() * 50);
+      } else if (onComplete) {
+        onComplete();
+      }
+    };
+    const startDelay = setTimeout(type, delay * 1000);
+    return () => {
+      clearTimeout(startDelay);
+      clearTimeout(timeout);
+    };
+  }, [text, delay, onComplete]);
+
+  return <span>{displayed}<span className="animate-pulse">_</span></span>;
+}
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
-  const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState(0);
+
+  const sanitize = (v) => typeof v === "string" ? DOMPurify.sanitize(v, { ALLOWED_TAGS: [], ALLOWED_ATTR: [], KEEP_CONTENT: true }).trim() : "";
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setMessage(""); setError("");
+    const sanitizedEmail = sanitize(email);
+    if (!sanitizedEmail) return setError("Transmission vector required.");
+
     setLoading(true);
-    setMessage("");
-    setError("");
-
     try {
-      const response = await fetch((process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555') + "/api/auth/forgot-password", {
+      const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5555";
+      const res = await fetch(`${API}/api/auth/forgot-password`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({ email }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: sanitizedEmail }),
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to send reset email");
-      }
-
-      setMessage(data.message || "Reset link sent to your email");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to initialize recovery protocol");
+      setMessage("Recovery protocol sent to transmission vector.");
+      setEmail("");
     } catch (err) {
-      setError(err.message || "Something went wrong");
+      setError(err.message || "Failed to initialize recovery protocol");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-900 text-white">
-      <MainNav />
-      <div className="flex-1 flex flex-col items-center justify-center p-6 relative overflow-hidden pt-20">
-        {/* Background Effects */}
-        <div className="absolute inset-0">
-          <div className="absolute top-0 -left-4 w-96 h-96 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
-          <div className="absolute top-0 -right-4 w-96 h-96 bg-gradient-to-r from-blue-400 to-cyan-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
-          <div className="absolute -bottom-8 left-20 w-96 h-96 bg-gradient-to-r from-orange-400 to-red-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
-        </div>
+    <div className="min-h-screen bg-[var(--color-canvas)] text-[var(--color-ink)] flex items-center justify-center relative overflow-hidden font-mono selection:bg-[#E11D48]/30">
+      
+      <div className="absolute inset-0 z-0 pointer-events-none">
+        <div className="absolute inset-0 bg-dot-grid opacity-20 dark:opacity-40" style={{ maskImage: "radial-gradient(circle at center, black 10%, transparent 80%)" }} />
+        <div className="absolute top-1/2 left-1/2 w-[200vw] h-[200vw] -translate-x-1/2 -translate-y-1/2 bg-[conic-gradient(from_90deg_at_50%_50%,rgba(225,29,72,0.1)_0%,transparent_50%)] animate-[spin_4s_linear_infinite]" />
+        <div className="absolute top-1/2 left-1/2 w-[600px] h-[600px] -translate-x-1/2 -translate-y-1/2 bg-[radial-gradient(circle,#E11D48_0%,transparent_60%)] opacity-10 filter blur-[100px]" />
+      </div>
+
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
+        className="relative z-10 w-full max-w-md p-8 sm:p-12 rounded-3xl bg-[var(--color-surface)]/40 backdrop-blur-3xl border border-[var(--color-edge-strong)] shadow-[0_0_80px_rgba(225,29,72,0.1)] overflow-hidden group"
+      >
+        <div className="absolute inset-0 rounded-3xl border border-[#E11D48]/0 group-hover:border-[#E11D48]/30 transition-all duration-700 pointer-events-none box-shadow-[0_0_20px_rgba(225,29,72,0)] group-hover:shadow-[0_0_40px_rgba(225,29,72,0.2)]" />
         
-        <div className="w-full max-w-md relative z-10">
-          <div className="bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl rounded-3xl px-8 py-10">
-            {/* Header */}
-            <div className="text-center mb-8">
-              <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-500 mb-6 shadow-lg">
-                <FiKey className="text-white text-2xl" />
-              </div>
-              <h1 className="text-3xl font-bold mb-2 pb-1 bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">
-                Forgot Password
-              </h1>
-              <p className="text-gray-300">Enter your email address and we'll send you a link to reset your password.</p>
+        <div className="mb-10 text-center">
+          <div className="flex justify-center mb-6 relative">
+            <div className="absolute inset-0 bg-[#E11D48]/20 blur-xl rounded-full" />
+            <div className="w-14 h-14 rounded-full border border-[#E11D48]/50 flex items-center justify-center bg-[var(--color-elevated)] relative z-10">
+              <FiShield className="text-[#E11D48] text-2xl" />
             </div>
-
-            {/* Messages */}
-            {message && (
-              <div className="mb-6 p-4 bg-green-500/10 border border-green-400/30 rounded-xl text-green-300 text-sm">
-                {message}
-              </div>
+          </div>
+          <div className="text-sm text-[#E11D48] flex flex-col gap-1 items-center justify-center min-h-[40px]">
+            {step === 0 && (
+              <TypewriterText text="> Requesting access recovery..." delay={0.2} onComplete={() => setTimeout(() => setStep(1), 500)} />
             )}
-            {error && (
-              <div className="mb-6 p-4 bg-red-500/10 border border-red-400/30 rounded-xl text-red-300 text-sm">
-                {error}
-              </div>
+            {step === 1 && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-[var(--color-ink)] font-sans font-bold text-2xl">
+                Identity Recovery
+              </motion.div>
             )}
-
-            {/* Form */}
-            <form className="space-y-6" onSubmit={handleSubmit}>
-              <div>
-                <label className="block text-sm font-semibold mb-2 text-gray-200">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  placeholder="example@gmail.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-300"
-                  required
-                />
-              </div>
-              
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-600 text-white font-bold rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-              >
-                {loading && (
-                  <svg className="animate-spin h-5 w-5 mr-2 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
-                  </svg>
-                )}
-                {loading ? "Sending..." : "Send Reset Link"}
-              </button>
-            </form>
           </div>
         </div>
+
+        <AnimatePresence>
+          {error && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mb-6 overflow-hidden">
+              <div className="px-4 py-3 rounded-lg bg-[#EF4444]/10 border border-[#EF4444]/30 text-sm text-[#EF4444] font-sans flex items-center gap-2">
+                <FiTerminal className="shrink-0" /> {error}
+              </div>
+            </motion.div>
+          )}
+          {message && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mb-6 overflow-hidden">
+              <div className="px-4 py-3 rounded-lg bg-[#22C55E]/10 border border-[#22C55E]/30 text-sm text-[#4ADE80] font-sans flex items-center gap-2">
+                <FiCheck className="shrink-0" /> {message}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <form onSubmit={handleSubmit} className="space-y-6 font-sans">
+          <div className="relative group/field">
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="block w-full bg-transparent border-0 border-b border-[var(--color-edge-strong)] py-3 pl-2 pr-10 text-[var(--color-ink)] focus:ring-0 focus:border-[#E11D48] transition-colors peer"
+              placeholder=" "
+            />
+            <label className="absolute left-2 top-3 text-[var(--color-muted)] text-sm transition-all peer-focus:-top-4 peer-focus:text-xs peer-focus:text-[#E11D48] peer-[:not(:placeholder-shown)]:-top-4 peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:text-[#E11D48] pointer-events-none">
+              Transmission Vector (Email)
+            </label>
+            <div className="absolute bottom-0 left-0 h-[2px] bg-[#E11D48] w-0 peer-focus:w-full transition-all duration-500 ease-out" />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading || step === 0}
+            className="w-full relative overflow-hidden bg-[var(--color-elevated)] border border-[var(--color-edge-strong)] hover:border-[#E11D48]/50 hover:shadow-[0_0_20px_rgba(225,29,72,0.3)] text-[var(--color-ink)] py-4 rounded-xl font-bold tracking-widest uppercase text-sm transition-all group/btn disabled:opacity-50 disabled:cursor-not-allowed mt-4"
+          >
+            <div className="absolute inset-0 bg-[#E11D48]/10 translate-y-full group-hover/btn:translate-y-0 transition-transform duration-300 ease-out" />
+            <span className="relative z-10 flex items-center justify-center gap-2">
+              {loading ? (
+                <>
+                  <svg className="animate-spin h-5 w-5 text-[#E11D48]" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                  </svg>
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <FiChevronRight className="text-[#E11D48]" /> Transmit Protocol
+                </>
+              )}
+            </span>
+          </button>
+        </form>
+
+        <div className="mt-8 pt-6 border-t border-[var(--color-edge)] text-center font-sans text-sm">
+          <Link href="/login" className="text-[#E11D48] hover:text-[#BE123C] font-semibold transition-colors flex items-center justify-center gap-1">
+            <FiChevronRight className="rotate-180" /> Abort and return
+          </Link>
+        </div>
+      </motion.div>
+      
+      <div className="absolute bottom-6 text-[10px] text-[var(--color-faint)] tracking-widest uppercase">
+        CYBERCRUX_SYSTEMS // SECURE_NODE_V2.0
       </div>
-      <Footer />
     </div>
   );
 }
