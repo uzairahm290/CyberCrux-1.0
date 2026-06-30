@@ -1,25 +1,58 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { FaUserEdit, FaUser, FaLock, FaTrash, FaSave, FaTimes, FaCamera, FaGlobe, FaMapMarkerAlt , FaCheckCircle, FaExclamationTriangle, FaInfoCircle } from "react-icons/fa";
-import { FaLinkedin, FaGithub } from "react-icons/fa";
-import { FiEye, FiEyeOff } from "react-icons/fi";
+import React, { useState, useEffect, useRef } from "react";
+import Link from "next/link";
+import { useRouter, usePathname } from "next/navigation";
+import {
+  BiBrain, BiLaptop, BiMedal, BiHomeAlt, BiMap, BiBookOpen,
+  BiWrench, BiNews, BiCode, BiMicrophone, BiTrophy,
+} from "react-icons/bi";
+import {
+  FaUser, FaLock, FaTrash, FaSave, FaCamera,
+  FaLinkedin, FaGithub, FaFire, FaCheckCircle, FaTimesCircle,
+} from "react-icons/fa";
+import {
+  FiBell, FiSettings, FiUser, FiLogOut, FiChevronDown,
+  FiShield, FiMenu, FiX, FiEye, FiEyeOff, FiEdit2,
+} from "react-icons/fi";
 import { useAuth } from "@/contexts/AuthContext";
-import { useRouter, useParams } from 'next/navigation';
-import DashNav from "@/layouts/DashNav";
-import Footer from "@/layouts/Footer";
 import CountryFlag from "@/components/ui/CountryFlag";
 
+const navLinks = [
+  { label: "Dashboard",      href: "/dashboard",   icon: BiHomeAlt },
+  { label: "Practice",       href: "/practice",    icon: BiBrain },
+  { label: "Compete",        href: "/compete",     icon: BiTrophy },
+  { label: "Mock Interview", href: "/interviews",  icon: BiMicrophone },
+  { label: "Roadmaps",       href: "/roadmap",     icon: BiMap },
+  { label: "Labs",           href: "/labs",        icon: BiLaptop },
+  { label: "Books",          href: "/books",       icon: BiBookOpen },
+  { label: "Tools",          href: "/tools",       icon: BiWrench },
+  { label: "Projects",       href: "/projects",    icon: BiCode },
+  { label: "Blog",           href: "/blog",        icon: BiNews },
+  { label: "Badges",         href: "/badges",      icon: BiMedal },
+];
+
+const XP_PER_LEVEL = 100;
+
 export default function SettingsPage() {
+  const router   = useRouter();
+  const pathname = usePathname();
   const { user, logout } = useAuth();
-  const router = useRouter();
-  const [active, setActive] = useState("profile");
-  const [isEditing, setIsEditing] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+
+  const [sidebarOpen,  setSidebarOpen]  = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef(null);
+
+  const [activeTab,        setActiveTab]        = useState("profile");
+  const [isEditing,        setIsEditing]        = useState(false);
+  const [isLoading,        setIsLoading]        = useState(false);
+  const [isDeleting,       setIsDeleting]       = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [profilePic, setProfilePic] = useState(user?.profile_pic || "/logo192.png");
+  const [profilePic,       setProfilePic]       = useState(user?.profile_pic || "");
+  const [toast,            setToast]            = useState(null);
+
+  const [userStats, setUserStats] = useState({ totalPoints: 0, currentStreak: 0, level: 1 });
+
   const [formData, setFormData] = useState({
     username: user?.username || "",
     fullName: user?.FullName || "",
@@ -27,160 +60,120 @@ export default function SettingsPage() {
     country: user?.country || "",
     description: user?.description || "",
     linkedin_url: user?.linkedin_url || "",
-    github_url: user?.github_url || ""
+    github_url: user?.github_url || "",
   });
-  const [passwordData, setPasswordData] = useState({
-    currentPassword: "",
-    newPassword: "",
-    confirmPassword: ""
-  });
-  const [passwordStrength, setPasswordStrength] = useState({
-    length: false,
-    uppercase: false,
-    lowercase: false,
-    number: false,
-    symbol: false
-  });
-  const [showPasswords, setShowPasswords] = useState({
-    current: false,
-    new: false,
-    confirm: false
-  });
-  const [showPasswordHint, setShowPasswordHint] = useState(false);
 
-  // Custom alert state
-  const [customAlert, setCustomAlert] = useState({
-    show: false,
-    type: 'success', // 'success', 'error', 'warning', 'info'
-    message: '',
-    title: ''
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: "", newPassword: "", confirmPassword: "",
   });
+  const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false });
+  const [passwordStrength, setPasswordStrength] = useState({
+    length: false, uppercase: false, lowercase: false, number: false, symbol: false,
+  });
+
+  const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5555";
 
   useEffect(() => {
-    const fetchUserProfile = async () => {
+    (async () => {
       try {
-        const response = await fetch((process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555') + '/api/user/profile', {
-          credentials: 'include'
-        });
-        console.log('Fetch profile response status:', response.status);
-        const data = await response.json();
-        console.log('Fetch profile data:', data);
-        
+        const res  = await fetch(`${API}/api/user/profile`, { credentials: "include" });
+        const data = await res.json();
         if (data.success) {
-          const userData = data.user;
+          const u = data.user;
           setFormData({
-            username: userData.username || "",
-            fullName: userData.fullName || "",
-            profile_pic: userData.profilePicture || "",
-            country: userData.country || "",
-            description: userData.description || "",
-            linkedin_url: userData.linkedinUrl || "",
-            github_url: userData.githubUrl || ""
+            username:     u.username || "",
+            fullName:     u.fullName || "",
+            profile_pic:  u.profilePicture || "",
+            country:      u.country || "",
+            description:  u.description || "",
+            linkedin_url: u.linkedinUrl || "",
+            github_url:   u.githubUrl || "",
           });
-          setProfilePic(userData.profilePicture || "/logo192.png");
+          setProfilePic(u.profilePicture || "");
         }
-      } catch (error) {
-        console.error('Error fetching user profile:', error);
-        // Fallback to user context data
+      } catch {
         if (user) {
-                  setFormData(prev => ({
-          ...prev,
-          username: user.username || "",
-          fullName: user.FullName || "",
-          profile_pic: user.profile_pic || ""
-        }));
-          setProfilePic(user.profile_pic || "/logo192.png");
+          setFormData((p) => ({ ...p, username: user.username || "", fullName: user.FullName || "" }));
+          setProfilePic(user.profile_pic || "");
         }
       }
-    };
-    
-    fetchUserProfile();
+    })();
   }, [user]);
 
-  const handleFormChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+  useEffect(() => {
+    if (!user?.id) return;
+    Promise.allSettled([
+      fetch(`${API}/api/practice/stats`, { credentials: "include" }),
+      fetch(`${API}/api/streak/user-streak/${user.id}`),
+    ]).then(async ([sRes, stRes]) => {
+      if (sRes.status === "fulfilled") {
+        const d = await sRes.value.json();
+        if (d.success) {
+          const pts = d.data.overview?.total_points_earned || 0;
+          setUserStats((p) => ({ ...p, totalPoints: pts, level: Math.floor(pts / XP_PER_LEVEL) + 1 }));
+        }
+      }
+      if (stRes.status === "fulfilled") {
+        const d = await stRes.value.json();
+        if (d.streak) setUserStats((p) => ({ ...p, currentStreak: d.streak.current_streak || 0 }));
+      }
+    });
+  }, [user]);
+
+  useEffect(() => {
+    const h = (e) => { if (userMenuRef.current && !userMenuRef.current.contains(e.target)) setUserMenuOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
+  const showToast = (type, message) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 3500);
   };
+
+  const handleLogout = async () => {
+    try { await fetch(`${API}/api/auth/logout`, { method: "POST", credentials: "include" }); } catch {}
+    logout();
+    router.push("/login");
+  };
+
+  const isActive = (href) => pathname === href || (href !== "/" && pathname.startsWith(href));
+
+  const handleFormChange = (e) => setFormData((p) => ({ ...p, [e.target.name]: e.target.value }));
 
   const handleProfilePicChange = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setProfilePic(reader.result);
-        setFormData(prev => ({ ...prev, profile_pic: reader.result }));
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  // Custom alert functions
-  const showAlert = (type, title, message) => {
-    setCustomAlert({
-      show: true,
-      type,
-      title,
-      message
-    });
-    
-    // Auto-hide after 3 seconds
-    setTimeout(() => {
-      setCustomAlert(prev => ({ ...prev, show: false }));
-    }, 3000);
-  };
-
-  const hideAlert = () => {
-    setCustomAlert(prev => ({ ...prev, show: false }));
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setProfilePic(reader.result);
+      setFormData((p) => ({ ...p, profile_pic: reader.result }));
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSaveProfile = async () => {
     setIsLoading(true);
     try {
-      console.log('Updating profile with data:', {
-        username: formData.username,
-        fullName: formData.fullName,
-        profilePicture: formData.profile_pic,
-        country: formData.country,
-        description: formData.description,
-        linkedin_url: formData.linkedin_url,
-        github_url: formData.github_url
+      const res  = await fetch(`${API}/api/user/profile`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          username:       formData.username,
+          fullName:       formData.fullName,
+          profilePicture: formData.profile_pic,
+          country:        formData.country,
+          description:    formData.description,
+          linkedin_url:   formData.linkedin_url,
+          github_url:     formData.github_url,
+        }),
       });
-      
-      const requestBody = {
-        username: formData.username,
-        fullName: formData.fullName,
-        profilePicture: formData.profile_pic,
-        country: formData.country,
-        description: formData.description,
-        linkedin_url: formData.linkedin_url,
-        github_url: formData.github_url
-      };
-      
-      console.log('Request body being sent:', requestBody);
-      
-      const res = await fetch((process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555') + '/api/user/profile', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(requestBody)
-      });
-      
-      console.log('Response status:', res.status);
       const data = await res.json();
-      console.log('Response data:', data);
-      
-      if (data.success) {
-        setIsEditing(false);
-        showAlert('success', '', 'Profile updated successfully!');
-      } else {
-        showAlert('error', '', data.message || 'Failed to update profile');
-      }
-    } catch (error) {
-      console.error('Error updating profile:', error);
-      showAlert('error', '', 'Error updating profile: ' + error.message);
+      if (data.success) { setIsEditing(false); showToast("success", "Profile updated successfully!"); }
+      else showToast("error", data.message || "Failed to update profile");
+    } catch (err) {
+      showToast("error", "Error updating profile: " + err.message);
     } finally {
       setIsLoading(false);
     }
@@ -188,553 +181,535 @@ export default function SettingsPage() {
 
   const handlePasswordChange = (e) => {
     const { name, value } = e.target;
-    setPasswordData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-
-    // Password strength validation for new password
-    if (name === 'newPassword') {
+    setPasswordData((p) => ({ ...p, [name]: value }));
+    if (name === "newPassword") {
       setPasswordStrength({
-        length: value.length >= 8,
+        length:    value.length >= 8,
         uppercase: /[A-Z]/.test(value),
         lowercase: /[a-z]/.test(value),
-        number: /\d/.test(value),
-        symbol: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(value)
+        number:    /\d/.test(value),
+        symbol:    /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(value),
       });
     }
   };
 
-  const handleChangePassword = async () => {
-    // Password strength validation
-    const isPasswordStrong = Object.values(passwordStrength).every(Boolean);
-    if (!isPasswordStrong) {
-              showAlert('error', '', 'Password must meet all strength requirements');
+  const handleUpdatePassword = async () => {
+    if (!Object.values(passwordStrength).every(Boolean)) {
+      showToast("error", "Password must meet all strength requirements");
       return;
     }
-
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-              showAlert('error', '', 'New passwords do not match!');
+      showToast("error", "New passwords do not match");
       return;
     }
     setIsLoading(true);
     try {
-      const res = await fetch((process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555') + '/api/auth/change-password', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ currentPassword: passwordData.currentPassword, newPassword: passwordData.newPassword })
+      const res  = await fetch(`${API}/api/auth/change-password`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ currentPassword: passwordData.currentPassword, newPassword: passwordData.newPassword }),
       });
       const data = await res.json();
       if (data.success) {
         setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
-        showAlert('success', '', 'Password changed successfully!');
+        showToast("success", "Password changed successfully!");
       } else {
-        showAlert('error', '', data.message || 'Failed to change password');
+        showToast("error", data.message || "Failed to change password");
       }
-    } catch (error) {
-      console.error('Error changing password:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleDeleteAccount = async () => {
-    showAlert('warning', '', 'Are you sure you want to delete your account? This action cannot be undone.');
-    setShowConfirmModal(true);
+    } catch { showToast("error", "Network error"); }
+    finally { setIsLoading(false); }
   };
 
   const confirmDeleteAccount = async () => {
     setShowConfirmModal(false);
     setIsDeleting(true);
     try {
-      const res = await fetch((process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555') + '/api/user/account', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include'
-      });
-      
+      const res  = await fetch(`${API}/api/user/account`, { method: "DELETE", credentials: "include" });
       const data = await res.json();
       if (data.success) {
-        showAlert('success', '', 'Account deleted successfully');
-        setTimeout(() => {
-          logout();
-          router.push('/');
-        }, 2000);
+        showToast("success", "Account deleted");
+        setTimeout(() => { logout(); router.push("/"); }, 2000);
       } else {
-        showAlert('error', '', data.message || 'Failed to delete account');
+        showToast("error", data.message || "Failed to delete account");
       }
-    } catch (error) {
-      console.error('Error deleting account:', error);
-      alert('Error deleting account: ' + error.message);
-    } finally {
-      setIsDeleting(false);
-    }
+    } catch { showToast("error", "Network error"); }
+    finally { setIsDeleting(false); }
   };
 
+  const xpInLevel  = userStats.totalPoints % XP_PER_LEVEL;
+  const xpProgress = (xpInLevel / XP_PER_LEVEL) * 100;
+
+  const inputCls = "w-full px-3 py-2.5 bg-[#0A0A0F] border border-white/[0.07] hover:border-white/[0.12] focus:border-red-600/40 rounded-lg text-sm text-white placeholder-gray-600 outline-none transition-colors";
+  const labelCls = "block text-xs font-medium text-gray-400 mb-1.5";
+
+  const strengthItems = [
+    { key: "length",    label: "8+ characters" },
+    { key: "uppercase", label: "Uppercase letter" },
+    { key: "lowercase", label: "Lowercase letter" },
+    { key: "number",    label: "Number" },
+    { key: "symbol",    label: "Symbol" },
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-900 text-white flex flex-col">
-      {/* Custom Alert - Minimal Notification Style */}
-      {customAlert.show && (
-        <div className="fixed bottom-6 right-6 z-50 max-w-sm w-full">
-          <div className={`transform transition-all duration-500 ease-out ${
-            customAlert.show ? 'translate-x-0 opacity-100 scale-100' : 'translate-x-full opacity-0 scale-95'
-          }`}>
-            <div className={`rounded-2xl shadow-2xl border backdrop-blur-xl ${
-              customAlert.type === 'success' ? 'bg-green-500/90 border-green-400/50 text-white' :
-              customAlert.type === 'error' ? 'bg-red-500/90 border-red-400/50 text-white' :
-              customAlert.type === 'warning' ? 'bg-yellow-500/90 border-yellow-400/50 text-white' :
-              'bg-blue-500/90 border-blue-400/50 text-white'
+    <div className="flex h-screen bg-[#080808] text-white overflow-hidden">
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-[60] animate-slide-right">
+          <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border shadow-2xl text-sm font-medium
+            ${toast.type === "success"
+              ? "bg-green-900/80 border-green-700/40 text-green-300"
+              : "bg-red-900/80 border-red-700/40 text-red-300"
             }`}>
-              <div className="flex items-center p-4">
-                <div className="flex-shrink-0">
-                  {customAlert.type === 'success' && <FaCheckCircle className="h-5 w-5 text-green-100" />}
-                  {customAlert.type === 'error' && <FaExclamationTriangle className="h-5 w-5 text-red-100" />}
-                  {customAlert.type === 'warning' && <FaExclamationTriangle className="h-5 w-5 text-yellow-100" />}
-                  {customAlert.type === 'info' && <FaInfoCircle className="h-5 w-5 text-blue-100" />}
-                </div>
-                <div className="ml-3 flex-1 min-w-0">
-                  <p className="text-sm font-medium">{customAlert.message}</p>
-                </div>
-                <div className="ml-3 flex-shrink-0">
-                  <button
-                    onClick={hideAlert}
-                    className="inline-flex text-white/80 hover:text-white focus:outline-none transition-colors p-1 rounded-full hover:bg-white/20"
-                  >
-                    <FaTimes className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
+            {toast.type === "success"
+              ? <FaCheckCircle className="text-green-400 flex-shrink-0" />
+              : <FaTimesCircle className="text-red-400 flex-shrink-0" />
+            }
+            {toast.message}
+            <button onClick={() => setToast(null)} className="ml-1 text-gray-500 hover:text-white transition-colors">
+              <FiX className="text-xs" />
+            </button>
           </div>
         </div>
       )}
-      
-      <DashNav />
-      <main className="flex flex-col">
-        <div className="max-w-6xl w-full mx-auto flex flex-col lg:flex-row gap-8 p-6 mt-16 mb-8">
-          {/* Sidebar */}
-          <aside className="lg:w-1/4 w-full">
-            <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl">
-              <h2 className="text-xl font-bold mb-6 text-center">Settings</h2>
-              <div className="space-y-2">
-                <button
-                  onClick={() => setActive("profile")}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all duration-300 font-medium
-                    ${active === "profile"
-                      ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg"
-                      : "text-gray-300 hover:text-white hover:bg-white/10"
-                    }
-                  `}
-                >
-                  <span className="text-lg"><FaUser /></span> Profile
-                </button>
-              <button
-                  onClick={() => setActive("account")}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all duration-300 font-medium
-                    ${active === "account"
-                        ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg"
-                        : "text-gray-300 hover:text-white hover:bg-white/10"
-                      }
-                `}
-              >
-                  <span className="text-lg"><FaLock /></span> Password
-              </button>
-              <button
-                onClick={() => setActive("danger")}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl w-full transition-all duration-300 font-medium
-                  ${active === "danger"
-                    ? "bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg"
-                    : "text-gray-300 hover:text-white hover:bg-white/10"
-                  }
-                `}
-              >
-                <span className="text-lg"><FaTrash /></span> Danger Zone
-              </button>
+
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm lg:hidden" onClick={() => setSidebarOpen(false)} />
+      )}
+
+      {/* ════ SIDEBAR ════ */}
+      <aside className={`
+        fixed lg:static inset-y-0 left-0 z-50
+        flex flex-col w-60 flex-shrink-0
+        bg-[#0C0C0C] border-r border-red-900/20
+        transition-transform duration-300 ease-in-out
+        ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+      `}>
+        <div className="flex items-center gap-3 h-16 px-5 border-b border-red-900/15 flex-shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center shadow-[0_0_16px_rgba(239,68,68,0.45)]">
+            <FiShield className="text-white text-sm" />
+          </div>
+          <span className="text-white font-bold tracking-tight">CyberCrux</span>
+          <button className="ml-auto p-1 rounded text-gray-600 hover:text-white lg:hidden transition-colors" onClick={() => setSidebarOpen(false)}>
+            <FiX />
+          </button>
+        </div>
+
+        <div className="px-4 py-4 border-b border-red-900/10">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-9 h-9 rounded-full bg-red-600/15 border border-red-600/25 flex items-center justify-center text-red-400 font-bold text-sm flex-shrink-0">
+              {user?.username?.[0]?.toUpperCase() || "U"}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-white truncate">{user?.username || "Hacker"}</p>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-red-400 font-medium bg-red-600/10 px-1.5 py-0.5 rounded border border-red-600/20">
+                  LVL {userStats.level}
+                </span>
+                <span className="text-[10px] text-gray-600">{userStats.totalPoints} XP</span>
               </div>
             </div>
-          </aside>
-          {/* Main Section */}
-          <section className="flex-1 space-y-6">
-            {/* Profile Settings */}
-            {active === "profile" && (
-              <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20 shadow-2xl">
-                <div className="flex justify-between items-center mb-8">
-                  <h2 className="text-2xl font-bold flex items-center gap-3">
-                    <FaUser className="text-blue-400" /> Profile Settings
-                  </h2>
-                  <button
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all duration-300 ${
-                      isEditing 
-                        ? "bg-gray-600 hover:bg-gray-700 text-white" 
-                        : "bg-blue-500 hover:bg-blue-600 text-white"
-                    }`}
-                    onClick={() => setIsEditing(!isEditing)}
-                  >
-                    {isEditing ? <FaTimes /> : <FaUserEdit />}
-                    {isEditing ? "Cancel" : "Edit Profile"}
-                  </button>
+          </div>
+          <div>
+            <div className="flex items-center justify-between text-[10px] text-gray-600 mb-1">
+              <span>{xpInLevel} / {XP_PER_LEVEL} XP to Level {userStats.level + 1}</span>
+            </div>
+            <div className="h-1 bg-[#1C1C1C] rounded-full overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-red-700 to-red-500 rounded-full transition-all duration-700" style={{ width: `${Math.max(2, xpProgress)}%` }} />
+            </div>
+          </div>
+        </div>
+
+        <nav className="flex-1 px-2 py-3 overflow-y-auto space-y-0.5 scrollbar-hide">
+          {navLinks.map(({ label, href, icon: Icon }) => {
+            const active = isActive(href);
+            return (
+              <Link key={href} href={href} onClick={() => setSidebarOpen(false)}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group
+                  ${active ? "bg-red-600/12 text-red-400 border border-red-600/18" : "text-gray-500 hover:text-gray-200 hover:bg-white/[0.04]"}`}>
+                <Icon className={`text-base shrink-0 ${active ? "text-red-400" : "text-gray-600 group-hover:text-gray-400"}`} />
+                <span className="truncate">{label}</span>
+                {active && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.8)]" />}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="px-2 py-3 border-t border-red-900/10 space-y-0.5">
+          <Link href="/settings" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-red-400 bg-red-600/12 border border-red-600/18 transition-colors">
+            <FiSettings className="text-base" /> Settings
+          </Link>
+          <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-red-500 hover:bg-red-600/10 transition-colors">
+            <FiLogOut className="text-base" /> Log out
+          </button>
+        </div>
+      </aside>
+
+      {/* ════ MAIN ════ */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+
+        {/* Topbar */}
+        <header className="h-16 flex items-center gap-3 px-5 border-b border-red-900/15 bg-[#0A0A0A] flex-shrink-0">
+          <button className="lg:hidden p-2 rounded-md text-gray-600 hover:text-white hover:bg-white/5 transition-colors" onClick={() => setSidebarOpen(true)}>
+            <FiMenu className="text-base" />
+          </button>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-white leading-none">Account Settings</p>
+            <p className="text-[11px] text-gray-600 mt-0.5 hidden sm:block">Manage your profile and security</p>
+          </div>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#141414] border border-orange-600/20 rounded-lg">
+            <FaFire className="text-orange-400 text-sm" />
+            <span className="text-sm font-bold text-white">{userStats.currentStreak}</span>
+            <span className="text-[11px] text-gray-500 hidden sm:inline">streak</span>
+          </div>
+          <button className="relative p-2 rounded-lg text-gray-600 hover:text-white hover:bg-white/5 transition-colors">
+            <FiBell className="text-base" />
+          </button>
+          <div className="relative" ref={userMenuRef}>
+            <button onClick={() => setUserMenuOpen((o) => !o)}
+              className="flex items-center gap-1.5 p-1.5 rounded-lg hover:bg-white/5 transition-colors focus:outline-none">
+              <div className="w-7 h-7 rounded-full bg-red-600/15 border border-red-600/25 flex items-center justify-center text-red-400 text-xs font-bold">
+                {user?.username?.[0]?.toUpperCase() || "U"}
+              </div>
+              <FiChevronDown className={`text-[11px] text-gray-500 transition-transform duration-150 ${userMenuOpen ? "rotate-180" : ""}`} />
+            </button>
+            {userMenuOpen && (
+              <div className="absolute right-0 top-full mt-2 w-48 bg-[#101010] border border-red-900/20 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.6)] py-1.5 z-50">
+                <div className="px-3 py-2 border-b border-red-900/10 mb-1">
+                  <p className="text-xs font-semibold text-white truncate">{user?.username}</p>
+                  <p className="text-[11px] text-gray-600 truncate">{user?.email}</p>
                 </div>
-                {isEditing ? (
-                  <div className="space-y-6">
-                    {/* Profile Picture */}
-                    <div className="flex items-center gap-6">
-                      <div className="relative">
-                        <img 
-                          src={profilePic}
-                          alt="Profile" 
-                          className="w-24 h-24 rounded-full border-4 border-blue-400 object-cover" 
-                        />
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleProfilePicChange}
-                          className="absolute left-0 top-0 w-full h-full opacity-0 cursor-pointer"
-                          style={{ zIndex: 2 }}
-                        />
-                        <button className="absolute -bottom-2 -right-2 bg-blue-500 hover:bg-blue-600 p-2 rounded-full transition-all duration-300 pointer-events-none">
-                          <FaCamera className="w-4 h-4" />
-                        </button>
-                      </div>
-                    <div>
-                        <h3 className="font-semibold text-lg">{formData.username || "User"}</h3>
-                        <p className="text-gray-400">Update your profile picture</p>
-                      </div>
+                {[
+                  { icon: FiUser,     label: "Profile",  href: `/profile/${user?.username}` },
+                  { icon: FiSettings, label: "Settings", href: "/settings" },
+                ].map(({ icon: Icon, label, href }) => (
+                  <Link key={href} href={href} onClick={() => setUserMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-3 py-2 text-xs text-gray-400 hover:text-white hover:bg-white/5 transition-colors">
+                    <Icon className="text-sm" /> {label}
+                  </Link>
+                ))}
+                <div className="my-1 h-px bg-red-900/10" />
+                <button onClick={handleLogout} className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-500 hover:bg-red-600/10 transition-colors">
+                  <FiLogOut className="text-sm" /> Log out
+                </button>
+              </div>
+            )}
+          </div>
+        </header>
+
+        {/* Content */}
+        <main className="flex-1 overflow-y-auto p-5">
+          <div className="max-w-4xl mx-auto flex flex-col lg:flex-row gap-5">
+
+            {/* Settings Tabs */}
+            <aside className="w-full lg:w-48 flex-shrink-0">
+              <div className="bg-[#0F0F0F] border border-white/[0.06] rounded-xl p-2">
+                <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wider px-3 py-2">Settings</p>
+                {[
+                  { key: "profile",  icon: FiUser,     label: "Profile" },
+                  { key: "password", icon: FaLock,     label: "Password" },
+                  { key: "danger",   icon: FaTrash,    label: "Danger Zone" },
+                ].map(({ key, icon: Icon, label }) => (
+                  <button
+                    key={key}
+                    onClick={() => setActiveTab(key)}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150
+                      ${activeTab === key
+                        ? key === "danger"
+                          ? "bg-red-600/15 text-red-400 border border-red-600/20"
+                          : "bg-red-600/15 text-red-400 border border-red-600/20"
+                        : "text-gray-500 hover:text-gray-200 hover:bg-white/[0.04]"
+                      }`}
+                  >
+                    <Icon className="text-base flex-shrink-0" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </aside>
+
+            {/* Tab Content */}
+            <div className="flex-1 min-w-0">
+
+              {/* ── Profile Tab ── */}
+              {activeTab === "profile" && (
+                <div className="bg-[#0F0F0F] border border-white/[0.06] rounded-xl">
+                  <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.05]">
+                    <div className="flex items-center gap-2">
+                      <FiUser className="text-red-400" />
+                      <h2 className="text-sm font-semibold text-white">Profile Settings</h2>
                     </div>
-                    {/* Full Name and Username in one line */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Full Name</label>
-                        <input 
-                          type="text" 
-                          name="fullName"
-                          value={formData.fullName}
-                          onChange={handleFormChange}
-                          placeholder="Enter your full name"
-                          className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300" 
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Username</label>
-                        <input 
-                          type="text" 
-                          name="username"
-                          value={formData.username}
-                          onChange={handleFormChange}
-                          placeholder="Enter your username"
-                          className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300" 
-                        />
-                        <p className="text-gray-400 text-xs mt-1">Username must be unique and contain no spaces</p>
-                      </div>
-                    </div>
-                    
-                    {/* Country and Email in one line */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Country</label>
-                        <input 
-                          type="text" 
-                          name="country"
-                          value={formData.country}
-                          onChange={handleFormChange}
-                          placeholder="e.g., United States, Pakistan, India"
-                          className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300" 
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Email</label>
-                        <input 
-                          type="email" 
-                          name="email"
-                          value={user?.email || ""}
-                          className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 cursor-not-allowed opacity-60" 
-                          disabled
-                        />
-                        <p className="text-gray-400 text-xs mt-1">Email cannot be changed</p>
-                      </div>
-                    </div>
-                    
-                    {/* Description */}
-                    <div>
-                      <label className="block text-sm font-medium mb-2">Description</label>
-                      <textarea 
-                        name="description"
-                        value={formData.description}
-                        onChange={handleFormChange}
-                        placeholder="Tell others about yourself..."
-                        rows="3"
-                        className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 resize-none" 
-                      />
-                    </div>
-                    
-                    {/* LinkedIn and GitHub in one line */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className=" text-sm font-medium mb-2 flex items-center gap-2">
-                          <FaLinkedin className="text-blue-500" />
-                          LinkedIn
-                        </label>
-                        <input 
-                          type="text" 
-                          name="linkedin_username"
-                          value={formData.linkedin_url ? formData.linkedin_url.replace('https://www.linkedin.com/in/', '') : ''}
-                          onChange={(e) => {
-                            const username = e.target.value;
-                            setFormData(prev => ({
-                              ...prev,
-                              linkedin_url: username ? `https://www.linkedin.com/in/${username}` : ''
-                            }));
-                          }}
-                          placeholder="username"
-                          className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300" 
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className=" text-sm font-medium mb-2 flex items-center gap-2">
-                          <FaGithub className="text-gray-300" />
-                          GitHub
-                        </label>
-                        <input 
-                          type="text" 
-                          name="github_username"
-                          value={formData.github_url ? formData.github_url.replace('https://github.com/', '') : ''}
-                          onChange={(e) => {
-                            const username = e.target.value;
-                            setFormData(prev => ({
-                              ...prev,
-                              github_url: username ? `https://github.com/${username}` : ''
-                            }));
-                          }}
-                          placeholder="username"
-                          className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300" 
-                        />
-                      </div>
-                    </div>
-                    {/* Save Button */}
-                    <div className="flex justify-end pt-4">
-                      <button 
-                        onClick={handleSaveProfile}
-                        disabled={isLoading}
-                        className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 px-8 py-3 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isLoading ? <FaSave className="animate-spin" /> : <FaSave />}
-                        {isLoading ? "Saving..." : "Save Changes"}
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => setIsEditing(!isEditing)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all
+                        ${isEditing
+                          ? "bg-white/[0.05] text-gray-400 hover:text-white border border-white/[0.07]"
+                          : "bg-red-600/10 text-red-400 border border-red-600/20 hover:bg-red-600/20"
+                        }`}
+                    >
+                      {isEditing ? <><FiX className="text-xs" /> Cancel</> : <><FiEdit2 className="text-xs" /> Edit</>}
+                    </button>
                   </div>
-                ) : (
-                  <div className="space-y-6">
-                    <div className="flex items-center gap-6">
-                      <img 
-                        src={profilePic}
-                        alt="Profile" 
-                        className="w-24 h-24 rounded-full border-4 border-blue-400 object-cover" 
-                      />
-                    <div className="flex-1">
-                        <h3 className="font-bold text-xl">{formData.username}</h3>
-                        {formData.country && (
-                          <p className="text-gray-400 flex items-center gap-2 mt-1">
-                          <CountryFlag 
-                          country={formData.country} 
-                          size="16px" 
-                          height="16px"
-                          title={formData.country}
-                        />
-                        {formData.country}
-                          </p>
-                        )}
-                        {formData.description && (
-                          <p className="text-gray-300 mt-2">{formData.description}</p>
-                        )}
-                    </div>
-                    </div>
-                    
-                    {/* Social Links */}
-                    {(formData.linkedin_url || formData.github_url) && (
-                      <div className="bg-white/5 rounded-xl p-4">
-                        <h4 className="font-semibold mb-3">Social Links</h4>
-                        <div className="flex gap-4">
-                          {formData.linkedin_url && (
-                            <a 
-                              href={formData.linkedin_url} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg transition-all duration-300"
-                            >
-                            <FaLinkedin className="text-grey-500" /> LinkedIn
-                            </a>
-                          )}
-                          {formData.github_url && (
-                            <a 
-                              href={formData.github_url} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg transition-all duration-300"
-                            >
-                              <FaGithub className="text-gray-300" /> GitHub
-                            </a>
-                          )}
+
+                  <div className="p-5 space-y-5">
+                    {/* Avatar */}
+                    <div className="flex items-center gap-4">
+                      <div className="relative flex-shrink-0">
+                        <div className="w-16 h-16 rounded-full bg-red-600/10 border-2 border-red-600/20 overflow-hidden flex items-center justify-center">
+                          {profilePic
+                            ? <img src={profilePic} alt="Avatar" className="w-full h-full object-cover" />
+                            : <FaUser className="text-red-400 text-xl" />
+                          }
                         </div>
+                        {isEditing && (
+                          <label className="absolute -bottom-1 -right-1 w-6 h-6 bg-red-600 hover:bg-red-500 rounded-full flex items-center justify-center cursor-pointer transition-colors shadow-lg">
+                            <FaCamera className="text-white text-[10px]" />
+                            <input type="file" accept="image/*" onChange={handleProfilePicChange} className="hidden" />
+                          </label>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-white">{formData.username || "—"}</p>
+                        <p className="text-xs text-gray-500">{user?.email}</p>
+                        {formData.country && (
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <CountryFlag country={formData.country} size="14px" height="12px" title={formData.country} />
+                            <span className="text-xs text-gray-500">{formData.country}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {isEditing ? (
+                      <>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className={labelCls}>Full Name</label>
+                            <input type="text" name="fullName" value={formData.fullName} onChange={handleFormChange} placeholder="Your full name" className={inputCls} />
+                          </div>
+                          <div>
+                            <label className={labelCls}>Username</label>
+                            <input type="text" name="username" value={formData.username} onChange={handleFormChange} placeholder="username" className={inputCls} />
+                            <p className="text-[10px] text-gray-600 mt-1">No spaces, must be unique</p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className={labelCls}>Country</label>
+                            <input type="text" name="country" value={formData.country} onChange={handleFormChange} placeholder="e.g. Pakistan, India" className={inputCls} />
+                          </div>
+                          <div>
+                            <label className={labelCls}>Email</label>
+                            <input type="email" value={user?.email || ""} disabled className={`${inputCls} opacity-40 cursor-not-allowed`} />
+                            <p className="text-[10px] text-gray-600 mt-1">Cannot be changed</p>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className={labelCls}>Bio</label>
+                          <textarea name="description" value={formData.description} onChange={handleFormChange} placeholder="Tell others about yourself..." rows={3} className={`${inputCls} resize-none`} />
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className={`${labelCls} flex items-center gap-1.5`}>
+                              <FaLinkedin className="text-[#0A66C2]" /> LinkedIn username
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="yourname"
+                              value={formData.linkedin_url ? formData.linkedin_url.replace("https://www.linkedin.com/in/", "") : ""}
+                              onChange={(e) => setFormData((p) => ({ ...p, linkedin_url: e.target.value ? `https://www.linkedin.com/in/${e.target.value}` : "" }))}
+                              className={inputCls}
+                            />
+                          </div>
+                          <div>
+                            <label className={`${labelCls} flex items-center gap-1.5`}>
+                              <FaGithub className="text-gray-300" /> GitHub username
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="yourname"
+                              value={formData.github_url ? formData.github_url.replace("https://github.com/", "") : ""}
+                              onChange={(e) => setFormData((p) => ({ ...p, github_url: e.target.value ? `https://github.com/${e.target.value}` : "" }))}
+                              className={inputCls}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end pt-2">
+                          <button
+                            onClick={handleSaveProfile}
+                            disabled={isLoading}
+                            className="flex items-center gap-2 px-5 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition-all shadow-[0_0_12px_rgba(239,68,68,0.2)]"
+                          >
+                            <FaSave className={isLoading ? "animate-spin" : ""} />
+                            {isLoading ? "Saving…" : "Save Changes"}
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="space-y-4">
+                        {formData.description && (
+                          <p className="text-sm text-gray-400 leading-relaxed">{formData.description}</p>
+                        )}
+                        {(formData.linkedin_url || formData.github_url) && (
+                          <div>
+                            <p className="text-[11px] text-gray-500 mb-2 uppercase tracking-wider font-semibold">Social Links</p>
+                            <div className="flex flex-wrap gap-2">
+                              {formData.linkedin_url && (
+                                <a href={formData.linkedin_url} target="_blank" rel="noopener noreferrer"
+                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0A66C2]/10 border border-[#0A66C2]/20 rounded-lg text-xs text-[#0A66C2] hover:bg-[#0A66C2]/20 transition-colors">
+                                  <FaLinkedin /> LinkedIn
+                                </a>
+                              )}
+                              {formData.github_url && (
+                                <a href={formData.github_url} target="_blank" rel="noopener noreferrer"
+                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/[0.05] border border-white/[0.08] rounded-lg text-xs text-gray-300 hover:bg-white/[0.08] transition-colors">
+                                  <FaGithub /> GitHub
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        {!formData.description && !formData.linkedin_url && !formData.github_url && (
+                          <p className="text-xs text-gray-600">No additional info — click Edit to add a bio and social links.</p>
+                        )}
                       </div>
                     )}
                   </div>
-                )}
-              </div>
-            )}
-            {/* Password Settings */}
-            {active === "account" && (
-              <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20 shadow-2xl">
-                <h2 className="text-2xl font-bold flex items-center gap-3 mb-8">
-                  <FaLock className="text-blue-400" /> Change Password
-                </h2>
-                <div className="space-y-8">
-                  <div className="bg-white/5 rounded-2xl p-6">
-                    <h3 className="text-lg font-semibold mb-4">Change Password</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                      <div className="relative">
-                        <input 
-                          type={showPasswords.current ? "text" : "password"}
-                          name="currentPassword"
-                          value={passwordData.currentPassword}
-                          onChange={handlePasswordChange}
-                          placeholder="Current Password" 
-                          className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300" 
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPasswords(prev => ({ ...prev, current: !prev.current }))}
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-400 hover:scale-110 transition-all duration-200 p-1 rounded-full hover:bg-white/10"
-                        >
-                          {showPasswords.current ? <FiEyeOff className="w-5 h-5" /> : <FiEye className="w-5 h-5" />}
-                        </button>
+                </div>
+              )}
+
+              {/* ── Password Tab ── */}
+              {activeTab === "password" && (
+                <div className="bg-[#0F0F0F] border border-white/[0.06] rounded-xl">
+                  <div className="flex items-center gap-2 px-5 py-4 border-b border-white/[0.05]">
+                    <FaLock className="text-red-400 text-sm" />
+                    <h2 className="text-sm font-semibold text-white">Change Password</h2>
+                  </div>
+                  <div className="p-5 space-y-4">
+                    {[
+                      { key: "current", name: "currentPassword", label: "Current Password",     placeholder: "••••••••" },
+                      { key: "new",     name: "newPassword",     label: "New Password",         placeholder: "••••••••" },
+                      { key: "confirm", name: "confirmPassword", label: "Confirm New Password", placeholder: "••••••••" },
+                    ].map(({ key, name, label, placeholder }) => (
+                      <div key={key}>
+                        <label className={labelCls}>{label}</label>
+                        <div className="relative">
+                          <input
+                            type={showPasswords[key] ? "text" : "password"}
+                            name={name}
+                            value={passwordData[name]}
+                            onChange={handlePasswordChange}
+                            placeholder={placeholder}
+                            className={`${inputCls} pr-10`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPasswords((p) => ({ ...p, [key]: !p[key] }))}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-300 transition-colors"
+                          >
+                            {showPasswords[key] ? <FiEyeOff className="text-sm" /> : <FiEye className="text-sm" />}
+                          </button>
+                        </div>
                       </div>
-                      
-                      <div className="relative">
-                        <input 
-                          type={showPasswords.new ? "text" : "password"}
-                          name="newPassword"
-                          value={passwordData.newPassword}
-                          onChange={handlePasswordChange}
-                          onFocus={() => setShowPasswordHint(true)}
-                          onBlur={() => setShowPasswordHint(false)}
-                          placeholder="New Password" 
-                          className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300" 
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPasswords(prev => ({ ...prev, new: !prev.new }))}
-                          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-400 hover:scale-110 transition-all duration-200 p-1 rounded-full hover:bg-white/10"
-                        >
-                          {showPasswords.new ? <FiEyeOff className="w-5 h-5" /> : <FiEye className="w-5 h-5" />}
-                        </button>
+                    ))}
+
+                    {/* Strength */}
+                    {passwordData.newPassword && (
+                      <div className="bg-[#0A0A0F] border border-white/[0.06] rounded-lg p-4">
+                        <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-3">Password Strength</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {strengthItems.map(({ key, label }) => (
+                            <div key={key} className="flex items-center gap-2">
+                              {passwordStrength[key]
+                                ? <FaCheckCircle className="text-green-500 text-xs flex-shrink-0" />
+                                : <FaTimesCircle className="text-gray-700 text-xs flex-shrink-0" />
+                              }
+                              <span className={`text-[11px] ${passwordStrength[key] ? "text-green-400" : "text-gray-600"}`}>
+                                {label}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                    
-                    <div className="relative mb-4">
-                      <input 
-                        type={showPasswords.confirm ? "text" : "password"}
-                        name="confirmPassword"
-                        value={passwordData.confirmPassword}
-                        onChange={handlePasswordChange}
-                        placeholder="Confirm New Password" 
-                        className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300" 
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPasswords(prev => ({ ...prev, confirm: !prev.confirm }))}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-400 hover:scale-110 transition-all duration-200 p-1 rounded-full hover:bg-white/10"
-                      >
-                        {showPasswords.confirm ? <FiEyeOff className="w-5 h-5" /> : <FiEye className="w-5 h-5" />}
-                      </button>
-                    </div>
-                    <button 
-                      onClick={handleChangePassword}
+                    )}
+
+                    <button
+                      onClick={handleUpdatePassword}
                       disabled={isLoading}
-                      className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 px-6 py-3 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex items-center gap-2 px-5 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition-all shadow-[0_0_12px_rgba(239,68,68,0.2)]"
                     >
-                      {isLoading ? "Updating..." : "Update Password"}
+                      {isLoading ? "Updating…" : "Update Password"}
                     </button>
                   </div>
                 </div>
-              </div>
-            )}
-            
-            {/* Danger Zone */}
-            {active === "danger" && (
-              <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20 shadow-2xl">
-                <h2 className="text-2xl font-bold flex items-center gap-3 mb-8">
-                  <FaTrash className="text-red-400" /> Danger Zone
-                </h2>
-                <div className="space-y-8">
-                  <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-6">
-                    <h3 className="text-lg font-semibold mb-4 text-red-400">Delete Account</h3>
-                    <p className="text-gray-300 mb-6">
-                      Once you delete your account, there is no going back. Please be certain.
-                      This will permanently remove all your data including practice progress, badges, and profile information.
-                    </p>
-                    
-                    <div className="space-y-4">
-                      <button 
-                        onClick={handleDeleteAccount}
+              )}
+
+              {/* ── Danger Zone ── */}
+              {activeTab === "danger" && (
+                <div className="bg-[#0F0F0F] border border-red-900/30 rounded-xl">
+                  <div className="flex items-center gap-2 px-5 py-4 border-b border-red-900/20">
+                    <FaTrash className="text-red-400 text-sm" />
+                    <h2 className="text-sm font-semibold text-red-400">Danger Zone</h2>
+                  </div>
+                  <div className="p-5">
+                    <div className="bg-red-950/30 border border-red-900/30 rounded-xl p-5">
+                      <p className="text-sm font-semibold text-red-400 mb-2">Delete Account</p>
+                      <p className="text-xs text-gray-500 mb-4 leading-relaxed">
+                        This will permanently delete your account including all practice progress, badges, streaks, and profile data. This action cannot be undone.
+                      </p>
+                      <button
+                        onClick={() => setShowConfirmModal(true)}
                         disabled={isDeleting}
-                        className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 px-6 py-3 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                        className="px-4 py-2 bg-red-600/20 hover:bg-red-600/40 border border-red-600/40 text-red-400 text-xs font-semibold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {isDeleting ? "Deleting Account..." : "Delete Account"}
+                        {isDeleting ? "Deleting…" : "Delete My Account"}
                       </button>
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
-          </section>
-        </div>
-      </main>
-      
-      {/* Delete Account Confirmation Modal */}
+              )}
+
+            </div>
+          </div>
+        </main>
+      </div>
+
+      {/* Confirm Delete Modal */}
       {showConfirmModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-8 border border-white/20 max-w-md w-full">
-            <div className="text-center">
-              <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-red-500/20 flex items-center justify-center">
-                <FaTrash className="w-8 h-8 text-red-400" />
-              </div>
-              
-              <h3 className="text-xl font-bold text-white mb-4">Delete Account</h3>
-              
-              <div className="text-gray-300 mb-6 text-left space-y-2">
-                <p className="text-sm">Are you absolutely sure you want to delete your account?</p>
-                <p className="text-xs text-gray-400">This action cannot be undone and will permanently remove:</p>
-                <ul className="text-xs text-gray-400 ml-4 space-y-1">
-                  <li>• All practice progress</li>
-                  <li>• Badges earned</li>
-                  <li>• Streaks and statistics</li>
-                  <li>• Profile information</li>
-                </ul>
-                <p className="text-xs text-red-400 font-medium mt-2">This action is irreversible!</p>
-              </div>
-              
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowConfirmModal(false)}
-                  className="flex-1 bg-gray-600 hover:bg-gray-700 px-4 py-3 rounded-xl font-medium transition-all duration-300"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmDeleteAccount}
-                  className="flex-1 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 px-4 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105"
-                >
-                  Delete Account
-                </button>
-              </div>
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#111118] border border-red-900/30 rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+            <div className="w-12 h-12 rounded-xl bg-red-600/10 border border-red-600/20 flex items-center justify-center mx-auto mb-4">
+              <FaTrash className="text-red-400" />
+            </div>
+            <h3 className="text-base font-bold text-white text-center mb-2">Delete Account?</h3>
+            <p className="text-xs text-gray-500 text-center mb-2">This will permanently remove:</p>
+            <ul className="text-xs text-gray-600 space-y-1 mb-5 mx-auto max-w-[200px]">
+              {["All practice progress", "Badges earned", "Streaks & statistics", "Profile information"].map((item) => (
+                <li key={item} className="flex items-center gap-2">
+                  <span className="w-1 h-1 rounded-full bg-red-500/60 flex-shrink-0" /> {item}
+                </li>
+              ))}
+            </ul>
+            <p className="text-[11px] text-red-400 text-center font-medium mb-5">This action is irreversible.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setShowConfirmModal(false)}
+                className="flex-1 py-2.5 bg-white/[0.05] border border-white/[0.08] text-gray-400 hover:text-white text-xs font-semibold rounded-lg transition-all">
+                Cancel
+              </button>
+              <button onClick={confirmDeleteAccount}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white text-xs font-semibold rounded-lg transition-all">
+                Delete
+              </button>
             </div>
           </div>
         </div>
       )}
-      <Footer />
     </div>
   );
 }

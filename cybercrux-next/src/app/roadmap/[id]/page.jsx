@@ -23,7 +23,7 @@ import {
   FaGraduationCap,
   FaStar,
 } from "react-icons/fa";
-import { useTheme } from "../../ThemeContext";
+import { useTheme } from "@/contexts/ThemeContext";
 
 export default function RoadmapViewPage() {
   const { id } = useParams();

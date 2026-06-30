@@ -1,373 +1,277 @@
 "use client";
-import { useRouter } from 'next/navigation';
 
-import MainNavbar from "@/layouts/MainNav";
-import Footer from "@/layouts/Footer";
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import { FcGoogle } from "react-icons/fc";
-import { useState, useContext } from "react";
-import Link from 'next/link';
-import { FiUserPlus, FiEye, FiEyeOff } from "react-icons/fi";
-import DOMPurify from 'dompurify';
+import { FiEye, FiEyeOff, FiShield, FiTerminal, FiChevronRight, FiCheck } from "react-icons/fi";
+import DOMPurify from "dompurify";
 import { useAuth } from "@/contexts/AuthContext";
 
-export default function () {
+/* ── Typewriter Effect Component ── */
+function TypewriterText({ text, delay = 0, onComplete }) {
+  const [displayed, setDisplayed] = useState("");
+
+  useEffect(() => {
+    let timeout;
+    let i = 0;
+    const type = () => {
+      if (i < text.length) {
+        setDisplayed((prev) => prev + text.charAt(i));
+        i++;
+        timeout = setTimeout(type, 30 + Math.random() * 50);
+      } else if (onComplete) {
+        onComplete();
+      }
+    };
+    const startDelay = setTimeout(type, delay * 1000);
+    return () => {
+      clearTimeout(startDelay);
+      clearTimeout(timeout);
+    };
+  }, [text, delay, onComplete]);
+
+  return <span>{displayed}<span className="animate-pulse">_</span></span>;
+}
+
+export default function Signup() {
   const router = useRouter();
   const { login } = useAuth();
-  const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    username: "",
-    fullName: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-  });
 
+  const [formData, setFormData] = useState({
+    username: "", fullName: "", email: "", password: "", confirmPassword: "",
+  });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [passwordStrength, setPasswordStrength] = useState({
-    length: false,
-    uppercase: false,
-    lowercase: false,
-    number: false,
-    symbol: false
-  });
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [showPasswordHint, setShowPasswordHint] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [showPw, setShowPw] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [step, setStep] = useState(0); // 0: Init, 1: Ready to form
 
-  // Sanitize input using DOMPurify
-  const sanitizeInput = (input) => {
-    if (typeof input !== 'string') return '';
-    return DOMPurify.sanitize(input, {
-      ALLOWED_TAGS: [],
-      ALLOWED_ATTR: [],
-      KEEP_CONTENT: true
-    }).trim();
-  };
+  const [passwordStrength, setPasswordStrength] = useState({
+    length: false, uppercase: false, lowercase: false, number: false, symbol: false,
+  });
+
+  const sanitize = (v) =>
+    typeof v === "string" ? DOMPurify.sanitize(v, { ALLOWED_TAGS: [], ALLOWED_ATTR: [], KEEP_CONTENT: true }).trim() : "";
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    // Don't sanitize fullName field to allow spaces, but sanitize other fields
-    if (name === 'fullName') {
-      setFormData((prev) => ({ ...prev, [name]: value }));
-    } else {
-      setFormData((prev) => ({ ...prev, [name]: sanitizeInput(value) }));
-    }
-
-    // Password strength validation
-    if (name === 'password') {
+    setFormData((p) => ({ ...p, [name]: name === "fullName" ? value : sanitize(value) }));
+    if (name === "password") {
       setPasswordStrength({
         length: value.length >= 8,
         uppercase: /[A-Z]/.test(value),
         lowercase: /[a-z]/.test(value),
         number: /\d/.test(value),
-        symbol: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(value)
+        symbol: /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(value),
       });
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    setSuccess('');
+    setError(""); setSuccess("");
+    const { fullName, email, password, confirmPassword } = formData;
+    if (!fullName.trim() || !email || !password || !confirmPassword) return setError("All required fields must be filled.");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setError("Please enter a valid email address.");
+    if (!Object.values(passwordStrength).every(Boolean)) return setError("Passcode does not meet security protocols.");
+    if (password !== confirmPassword) return setError("Passcodes do not match.");
+
     setLoading(true);
-
-    // Basic validation
-    const { username, fullName, email, password, confirmPassword } = formData;
-    if (!fullName.trim() || !email.trim() || !password || !confirmPassword) {
-      setError('Full name, email, and password are required');
-      setLoading(false);
-      return;
-    }
-    if (fullName.length > 100 || email.length > 100 || password.length > 100) {
-      setError('Input too long');
-      setLoading(false);
-      return;
-    }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      setError('Please enter a valid email address');
-      setLoading(false);
-      return;
-    }
-    // Password strength validation
-    const isPasswordStrong = Object.values(passwordStrength).every(Boolean);
-    if (!isPasswordStrong) {
-      setError('Password must meet all strength requirements');
-      setLoading(false);
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      setLoading(false);
-      return;
-    }
-
     try {
-      const response = await fetch((process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555') + '/api/auth/signup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // For cookies if using sessions
+      const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5555";
+      const res = await fetch(`${API}/api/auth/signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
-          username: sanitizeInput(formData.username),
-          fullName: sanitizeInput(formData.fullName),
-          email: sanitizeInput(formData.email),
-          password: sanitizeInput(formData.password),
-          confirmPassword: sanitizeInput(formData.confirmPassword)
+          username: sanitize(formData.username),
+          fullName: sanitize(formData.fullName),
+          email: sanitize(formData.email),
+          password: sanitize(formData.password),
+          confirmPassword: sanitize(formData.confirmPassword),
         }),
       });
-  
-      // Check if response is OK (status 200-299)
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-      }
-  
-      const data = await response.json();
-  
-            if (!data.success) {
-        throw new Error(data.message || 'Signup failed');
-      }
+      if (!res.ok) { const d = await res.json(); throw new Error(d.message || `Error ${res.status}`); }
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || "Request failed");
 
-      setSuccess(data.message + (data.username ? ` - Your username is: ${data.username}` : '') + ' Please check your email to verify your account.');
-      setFormData({
-        username: '',
-        fullName: '',
-        email: '',
-        password: '',
-        confirmPassword: '',
-      });
-      
-      // Log the user in with the response data
-      if (data.user) {
-        login(data.user);
-      }
-      
-      // Redirect to email verification page after successful signup
-      setTimeout(() => {
-        router.push('/verify-email');
-      }, 1500);
-  
+      setSuccess("Identity recorded. Awaiting verification...");
+      if (data.user) login(data.user);
+      setTimeout(() => router.push("/verify-email"), 2000);
     } catch (err) {
-      setError(err.message || 'An unexpected error occurred');
-      console.error('Signup error:', err);
-    } finally {
+      setError(err.message || "An unexpected error occurred");
       setLoading(false);
     }
   };
 
+  const isStrong = Object.values(passwordStrength).every(Boolean);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-900 text-white">
-      <MainNavbar />
-      <div className="flex-1 flex flex-col items-center justify-center p-6 relative overflow-hidden pt-20">
-        {/* Background Effects */}
-        <div className="absolute inset-0">
-          <div className="absolute top-0 -left-4 w-96 h-96 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
-          <div className="absolute top-0 -right-4 w-96 h-96 bg-gradient-to-r from-blue-400 to-cyan-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
-          <div className="absolute -bottom-8 left-20 w-96 h-96 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
-        </div>
+    <div className="min-h-screen bg-[var(--color-canvas)] text-[var(--color-ink)] flex items-center justify-center relative overflow-hidden font-mono selection:bg-[#E11D48]/30 py-12">
+      
+      {/* ── Immersive Background ── */}
+      <div className="absolute inset-0 z-0 pointer-events-none fixed">
+        <div 
+          className="absolute inset-0 bg-dot-grid opacity-20 dark:opacity-40" 
+          style={{ maskImage: "radial-gradient(circle at center, black 10%, transparent 80%)" }}
+        />
+        <div className="absolute top-1/2 left-1/2 w-[200vw] h-[200vw] -translate-x-1/2 -translate-y-1/2 bg-[conic-gradient(from_90deg_at_50%_50%,rgba(225,29,72,0.1)_0%,transparent_50%)] animate-[spin_4s_linear_infinite]" />
+        <div className="absolute top-1/2 left-1/2 w-[600px] h-[600px] -translate-x-1/2 -translate-y-1/2 bg-[radial-gradient(circle,#E11D48_0%,transparent_60%)] opacity-10 filter blur-[100px]" />
+      </div>
+
+      {/* ── Main Gateway Card ── */}
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
+        className="relative z-10 w-full max-w-md p-8 sm:p-12 rounded-3xl bg-[var(--color-surface)]/40 backdrop-blur-3xl border border-[var(--color-edge-strong)] shadow-[0_0_80px_rgba(225,29,72,0.1)] overflow-hidden group my-8"
+      >
+        <div className="absolute inset-0 rounded-3xl border border-[#E11D48]/0 group-hover:border-[#E11D48]/30 transition-all duration-700 pointer-events-none box-shadow-[0_0_20px_rgba(225,29,72,0)] group-hover:shadow-[0_0_40px_rgba(225,29,72,0.2)]" />
         
-        <div className="w-full max-w-md relative z-10">
-          <div className="bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl rounded-3xl px-8 py-10">
-            {/* Header */}
-            <div className="text-center mb-8">
-              <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-500 mb-6 shadow-lg">
-                <FiUserPlus className="text-white text-2xl" />
-              </div>
-              <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">
-                Create Account
-              </h1>
-              <p className="text-gray-300">Start your cybersecurity journey today</p>
+        {/* Header */}
+        <div className="mb-10 text-center">
+          <div className="flex justify-center mb-6 relative">
+            <div className="absolute inset-0 bg-[#E11D48]/20 blur-xl rounded-full" />
+            <div className="w-14 h-14 rounded-full border border-[#E11D48]/50 flex items-center justify-center bg-[var(--color-elevated)] relative z-10">
+              <FiShield className="text-[#E11D48] text-2xl" />
             </div>
-
-            {/* Error / Success messages */}
-            {error && (
-              <div className="mb-6 p-4 bg-red-500/10 border border-red-400/30 rounded-xl text-red-300 text-sm">
-                {error}
-              </div>
+          </div>
+          <div className="text-sm text-[#E11D48] flex flex-col gap-1 items-center justify-center min-h-[40px]">
+            {step === 0 && (
+              <TypewriterText text="> Initializing new identity record..." delay={0.2} onComplete={() => setTimeout(() => setStep(1), 500)} />
             )}
-            {success && (
-              <div className="mb-6 p-4 bg-green-500/10 border border-green-400/30 rounded-xl text-green-300 text-sm">
-                {success}
-              </div>
+            {step === 1 && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-[var(--color-ink)] font-sans font-bold text-2xl">
+                Identity Creation
+              </motion.div>
             )}
-
-            {/* Form */}
-            <form className="space-y-6" onSubmit={handleSubmit}>
-              <div>
-                <label className="block text-sm font-semibold mb-2 text-gray-200">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  name="fullName"
-                  placeholder="John Doe"
-                  className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-300"
-                  value={formData.fullName}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-semibold mb-2 text-gray-200">
-                  Username (Optional)
-                  <span className="text-xs text-gray-400 ml-2">Leave empty for auto-generation</span>
-                </label>
-                <input
-                  type="text"
-                  name="username"
-                  placeholder="johndoe123 (optional)"
-                  className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-300"
-                  value={formData.username}
-                  onChange={handleChange}
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-semibold mb-2 text-gray-200">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  name="email"
-                  placeholder="example@gmail.com"
-                  className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-300"
-                  value={formData.email}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-semibold mb-2 text-gray-200">
-                  Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    name="password"
-                    placeholder="Create a strong password"
-                    className="w-full px-4 py-3 pr-12 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-300"
-                    value={formData.password}
-                    onChange={handleChange}
-                    onFocus={() => setShowPasswordHint(true)}
-                    onBlur={() => setShowPasswordHint(false)}
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-400 hover:scale-110 transition-all duration-200 p-1 rounded-full hover:bg-white/10"
-                  >
-                    {showPassword ? <FiEyeOff className="w-5 h-5" /> : <FiEye className="w-5 h-5" />}
-                  </button>
-                </div>
-                
-                {/* Password Requirements Hint - Show briefly on focus */}
-                {showPasswordHint && !formData.password && (
-                  <div className="mt-2 text-xs text-gray-400 bg-white/5 rounded-lg p-2">
-                    💡 Password must be at least 8 characters with uppercase, lowercase, number, and special character
-                  </div>
-                )}
-                
-                {/* Password Strength Indicator - Only show when password is weak or there's an error */}
-                {(formData.password && !Object.values(passwordStrength).every(Boolean)) && (
-                  <div className="mt-3 space-y-2">
-                    <div className="text-xs text-gray-400 mb-2">Password must contain:</div>
-                    <div className="space-y-1">
-                      <div className={`flex items-center text-xs ${passwordStrength.length ? 'text-green-400' : 'text-red-400'}`}>
-                        <span className={`w-2 h-2 rounded-full mr-2 ${passwordStrength.length ? 'bg-green-400' : 'bg-red-400'}`}></span>
-                        At least 8 characters
-                      </div>
-                      <div className={`flex items-center text-xs ${passwordStrength.uppercase ? 'text-green-400' : 'text-red-400'}`}>
-                        <span className={`w-2 h-2 rounded-full mr-2 ${passwordStrength.uppercase ? 'bg-green-400' : 'bg-red-400'}`}></span>
-                        One uppercase letter (A-Z)
-                      </div>
-                      <div className={`flex items-center text-xs ${passwordStrength.lowercase ? 'text-green-400' : 'text-red-400'}`}>
-                        <span className={`w-2 h-2 rounded-full mr-2 ${passwordStrength.lowercase ? 'bg-green-400' : 'bg-red-400'}`}></span>
-                        One lowercase letter (a-z)
-                      </div>
-                      <div className={`flex items-center text-xs ${passwordStrength.number ? 'text-green-400' : 'text-red-400'}`}>
-                        <span className={`w-2 h-2 rounded-full mr-2 ${passwordStrength.number ? 'bg-green-400' : 'bg-red-400'}`}></span>
-                        One number (0-9)
-                      </div>
-                      <div className={`flex items-center text-xs ${passwordStrength.symbol ? 'text-green-400' : 'text-red-400'}`}>
-                        <span className={`w-2 h-2 rounded-full mr-2 ${passwordStrength.symbol ? 'bg-green-400' : 'bg-red-400'}`}></span>
-                        One special character (!@#$%^&*)
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-              
-              <div>
-                <label className="block text-sm font-semibold mb-2 text-gray-200">
-                  Confirm Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showConfirmPassword ? "text" : "password"}
-                    name="confirmPassword"
-                    placeholder="Confirm your password"
-                    className="w-full px-4 py-3 pr-12 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-300"
-                    value={formData.confirmPassword}
-                    onChange={handleChange}
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-400 hover:scale-110 transition-all duration-200 p-1 rounded-full hover:bg-white/10"
-                  >
-                    {showConfirmPassword ? <FiEyeOff className="w-5 h-5" /> : <FiEye className="w-5 h-5" />}
-                  </button>
-                </div>
-              </div>
-              
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-600 text-white font-bold rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-              >
-                {loading && (
-                  <svg className="animate-spin h-5 w-5 mr-2 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
-                  </svg>
-                )}
-                {loading ? "Creating Account..." : "Create Account"}
-              </button>
-              
-              <div className="text-center text-sm text-gray-400">
-                Already have an account?{" "}
-                <Link href="/login" className="text-blue-400 hover:text-blue-300 transition-colors font-semibold">
-                  Log In
-                </Link>
-              </div>
-              
-              <div className="flex items-center my-6">
-                <div className="flex-grow border-t border-white/20"></div>
-                <span className="px-4 text-gray-400 text-sm">OR</span>
-                <div className="flex-grow border-t border-white/20"></div>
-              </div>
-              
-              <button 
-                type="button" 
-                onClick={() => window.location.href = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555') + '/api/auth/google'}
-                className="w-full py-3 bg-white/10 backdrop-blur-sm border border-white/20 text-white font-semibold rounded-xl hover:bg-white/20 transition-all duration-300 flex items-center justify-center gap-3"
-              >
-                <FcGoogle className="text-lg" />
-                Continue with Google
-              </button>
-            </form>
           </div>
         </div>
+
+        <AnimatePresence>
+          {error && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mb-6 overflow-hidden">
+              <div className="px-4 py-3 rounded-lg bg-[#EF4444]/10 border border-[#EF4444]/30 text-sm text-[#EF4444] font-sans flex items-center gap-2">
+                <FiTerminal className="shrink-0" /> {error}
+              </div>
+            </motion.div>
+          )}
+          {success && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mb-6 overflow-hidden">
+              <div className="px-4 py-3 rounded-lg bg-[#22C55E]/10 border border-[#22C55E]/30 text-sm text-[#4ADE80] font-sans flex items-center gap-2">
+                <FiCheck className="shrink-0" /> {success}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <form onSubmit={handleSubmit} className="space-y-6 font-sans">
+          {/* Full Name */}
+          <div className="relative group/field">
+            <input name="fullName" type="text" required value={formData.fullName} onChange={handleChange} className="block w-full bg-transparent border-0 border-b border-[var(--color-edge-strong)] py-3 pl-2 pr-4 text-[var(--color-ink)] focus:ring-0 focus:border-[#E11D48] transition-colors peer" placeholder=" " />
+            <label className="absolute left-2 top-3 text-[var(--color-muted)] text-sm transition-all peer-focus:-top-4 peer-focus:text-xs peer-focus:text-[#E11D48] peer-[:not(:placeholder-shown)]:-top-4 peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:text-[#E11D48] pointer-events-none">Designation (Full Name) *</label>
+            <div className="absolute bottom-0 left-0 h-[2px] bg-[#E11D48] w-0 peer-focus:w-full transition-all duration-500 ease-out" />
+          </div>
+
+          {/* Username */}
+          <div className="relative group/field">
+            <input name="username" type="text" value={formData.username} onChange={handleChange} className="block w-full bg-transparent border-0 border-b border-[var(--color-edge-strong)] py-3 pl-2 pr-4 text-[var(--color-ink)] focus:ring-0 focus:border-[#E11D48] transition-colors peer" placeholder=" " />
+            <label className="absolute left-2 top-3 text-[var(--color-muted)] text-sm transition-all peer-focus:-top-4 peer-focus:text-xs peer-focus:text-[#E11D48] peer-[:not(:placeholder-shown)]:-top-4 peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:text-[#E11D48] pointer-events-none">Alias (Optional)</label>
+            <div className="absolute bottom-0 left-0 h-[2px] bg-[#E11D48] w-0 peer-focus:w-full transition-all duration-500 ease-out" />
+          </div>
+
+          {/* Email */}
+          <div className="relative group/field">
+            <input name="email" type="email" required value={formData.email} onChange={handleChange} className="block w-full bg-transparent border-0 border-b border-[var(--color-edge-strong)] py-3 pl-2 pr-4 text-[var(--color-ink)] focus:ring-0 focus:border-[#E11D48] transition-colors peer" placeholder=" " />
+            <label className="absolute left-2 top-3 text-[var(--color-muted)] text-sm transition-all peer-focus:-top-4 peer-focus:text-xs peer-focus:text-[#E11D48] peer-[:not(:placeholder-shown)]:-top-4 peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:text-[#E11D48] pointer-events-none">Transmission Vector (Email) *</label>
+            <div className="absolute bottom-0 left-0 h-[2px] bg-[#E11D48] w-0 peer-focus:w-full transition-all duration-500 ease-out" />
+          </div>
+
+          {/* Password */}
+          <div className="relative group/field">
+            <input name="password" type={showPw ? "text" : "password"} required value={formData.password} onChange={handleChange} className="block w-full bg-transparent border-0 border-b border-[var(--color-edge-strong)] py-3 pl-2 pr-10 text-[var(--color-ink)] focus:ring-0 focus:border-[#E11D48] transition-colors peer" placeholder=" " />
+            <label className="absolute left-2 top-3 text-[var(--color-muted)] text-sm transition-all peer-focus:-top-4 peer-focus:text-xs peer-focus:text-[#E11D48] peer-[:not(:placeholder-shown)]:-top-4 peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:text-[#E11D48] pointer-events-none">Set Passcode *</label>
+            <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-2 top-3 text-[var(--color-muted)] hover:text-[#E11D48] transition-colors">{showPw ? <FiEyeOff /> : <FiEye />}</button>
+            <div className="absolute bottom-0 left-0 h-[2px] bg-[#E11D48] w-0 peer-focus:w-full transition-all duration-500 ease-out" />
+          </div>
+
+          {/* Password Strength Indicator */}
+          {formData.password && (
+            <div className="pt-1">
+              <div className="flex gap-1 mb-2">
+                {[0,1,2,3,4].map((i) => {
+                  const passed = Object.values(passwordStrength).filter(Boolean).length;
+                  const colors = ["#EF4444", "#F59E0B", "#F59E0B", "#22C55E", "#22C55E"];
+                  return <div key={i} className="h-1 flex-1 rounded-full transition-all duration-300" style={{ background: i < passed ? colors[passed - 1] : "rgba(255,255,255,0.08)" }} />;
+                })}
+              </div>
+              <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[10px] uppercase tracking-wider font-mono">
+                {[["length", "8+ chars"], ["uppercase", "A-Z"], ["lowercase", "a-z"], ["number", "0-9"], ["symbol", "!@#$"]].map(([k, l]) => (
+                  <div key={k} className={`flex items-center gap-1 ${passwordStrength[k] ? "text-[#4ADE80]" : "text-[var(--color-faint)]"}`}>
+                    <FiCheck className={passwordStrength[k] ? "opacity-100" : "opacity-0"} /> {l}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Confirm Password */}
+          <div className="relative group/field">
+            <input name="confirmPassword" type={showConfirm ? "text" : "password"} required value={formData.confirmPassword} onChange={handleChange} className="block w-full bg-transparent border-0 border-b border-[var(--color-edge-strong)] py-3 pl-2 pr-10 text-[var(--color-ink)] focus:ring-0 focus:border-[#E11D48] transition-colors peer" placeholder=" " />
+            <label className="absolute left-2 top-3 text-[var(--color-muted)] text-sm transition-all peer-focus:-top-4 peer-focus:text-xs peer-focus:text-[#E11D48] peer-[:not(:placeholder-shown)]:-top-4 peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:text-[#E11D48] pointer-events-none">Verify Passcode *</label>
+            <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-2 top-3 text-[var(--color-muted)] hover:text-[#E11D48] transition-colors">{showConfirm ? <FiEyeOff /> : <FiEye />}</button>
+            <div className="absolute bottom-0 left-0 h-[2px] bg-[#E11D48] w-0 peer-focus:w-full transition-all duration-500 ease-out" />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading || step === 0 || (formData.password && !isStrong)}
+            className="w-full relative overflow-hidden bg-[var(--color-elevated)] border border-[var(--color-edge-strong)] hover:border-[#E11D48]/50 hover:shadow-[0_0_20px_rgba(225,29,72,0.3)] text-[var(--color-ink)] py-4 rounded-xl font-bold tracking-widest uppercase text-sm transition-all group/btn disabled:opacity-50 disabled:cursor-not-allowed mt-4"
+          >
+            <div className="absolute inset-0 bg-[#E11D48]/10 translate-y-full group-hover/btn:translate-y-0 transition-transform duration-300 ease-out" />
+            <span className="relative z-10 flex items-center justify-center gap-2">
+              {loading ? (
+                <>
+                  <svg className="animate-spin h-5 w-5 text-[#E11D48]" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                  </svg>
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <FiChevronRight className="text-[#E11D48]" /> Create Identity
+                </>
+              )}
+            </span>
+          </button>
+        </form>
+
+        <div className="mt-8 pt-6 border-t border-[var(--color-edge)]">
+          <button
+            type="button"
+            onClick={() => (window.location.href = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5555"}/api/auth/google`)}
+            className="w-full flex items-center justify-center gap-3 py-3 rounded-lg border border-[var(--color-edge-strong)] hover:bg-[var(--color-elevated)] transition-colors text-sm text-[var(--color-muted)] hover:text-[var(--color-ink)]"
+          >
+            <FcGoogle className="text-lg" /> Import Identity via Google
+          </button>
+        </div>
+
+        <div className="mt-6 text-center font-sans text-sm">
+          <span className="text-[var(--color-faint)]">Identity recognized?</span>{" "}
+          <Link href="/login" className="text-[#E11D48] hover:text-[#BE123C] font-semibold transition-colors">
+            Authenticate
+          </Link>
+        </div>
+      </motion.div>
+      
+      {/* ── Footer Branding ── */}
+      <div className="absolute bottom-6 text-[10px] text-[var(--color-faint)] tracking-widest uppercase fixed">
+        CYBERCRUX_SYSTEMS // SECURE_NODE_V2.0
       </div>
-      <Footer />
     </div>
   );
 }

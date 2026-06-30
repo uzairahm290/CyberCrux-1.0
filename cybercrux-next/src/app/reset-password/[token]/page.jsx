@@ -1,225 +1,189 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter, useParams } from 'next/navigation';
-import axios from "axios";
-import MainNavbar from "@/layouts/MainNav";
-import Footer from "@/layouts/Footer";
-import { FiLock, FiEye, FiEyeOff } from "react-icons/fi";
+import { useState, useEffect } from "react";
+import { useRouter, useParams } from "next/navigation";
+import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
+import { FiLock, FiTerminal, FiShield, FiChevronRight, FiCheck } from "react-icons/fi";
+import DOMPurify from "dompurify";
+
+/* ── Typewriter Effect Component ── */
+function TypewriterText({ text, delay = 0, onComplete }) {
+  const [displayed, setDisplayed] = useState("");
+
+  useEffect(() => {
+    let timeout;
+    let i = 0;
+    const type = () => {
+      if (i < text.length) {
+        setDisplayed((prev) => prev + text.charAt(i));
+        i++;
+        timeout = setTimeout(type, 30 + Math.random() * 50);
+      } else if (onComplete) {
+        onComplete();
+      }
+    };
+    const startDelay = setTimeout(type, delay * 1000);
+    return () => {
+      clearTimeout(startDelay);
+      clearTimeout(timeout);
+    };
+  }, [text, delay, onComplete]);
+
+  return <span>{displayed}<span className="animate-pulse">_</span></span>;
+}
 
 export default function ResetPassword() {
-  const { token } = useParams();
   const router = useRouter();
+  const { token } = useParams();
+  
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState({ text: "", isError: false });
-  const [passwordStrength, setPasswordStrength] = useState({
-    length: false,
-    uppercase: false,
-    lowercase: false,
-    number: false,
-    symbol: false
-  });
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [showPasswordHint, setShowPasswordHint] = useState(false);
+  const [step, setStep] = useState(0);
 
-  const handlePasswordChange = (value) => {
-    setPassword(value);
-    setPasswordStrength({
-      length: value.length >= 8,
-      uppercase: /[A-Z]/.test(value),
-      lowercase: /[a-z]/.test(value),
-      number: /\d/.test(value),
-      symbol: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(value)
-    });
-  };
+  const sanitize = (v) => typeof v === "string" ? DOMPurify.sanitize(v, { ALLOWED_TAGS: [], ALLOWED_ATTR: [], KEEP_CONTENT: true }).trim() : "";
 
-  const handleReset = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (password !== confirmPassword) {
-      setMessage({
-        text: "Passwords do not match",
-        isError: true
-      });
-      return;
-    }
-
-    // Password strength validation
-    const isPasswordStrong = Object.values(passwordStrength).every(Boolean);
-    if (!isPasswordStrong) {
-      setMessage({
-        text: "Password must meet all strength requirements",
-        isError: true
-      });
-      return;
-    }
+    setError(""); setSuccess("");
+    if (!password || !confirmPassword) return setError("New passcodes required.");
+    if (password !== confirmPassword) return setError("Passcodes do not match.");
 
     setLoading(true);
-    setMessage({ text: "", isError: false });
-
     try {
-      const response = await axios.post(
-        `${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555')}/api/auth/reset-password/${token}`,
-        { password }
-      );
-      setMessage({
-        text: response.data.message,
-        isError: false
+      const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5555";
+      const res = await fetch(`${API}/api/auth/reset-password/${token}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: sanitize(password), confirmPassword: sanitize(confirmPassword) }),
       });
-      // Redirect to login after successful reset
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to finalize recovery protocol");
+      setSuccess("Identity recovery complete. Access restored.");
       setTimeout(() => router.push("/login"), 2000);
     } catch (err) {
-      setMessage({
-        text: err.response?.data?.message || "Failed to reset password",
-        isError: true
-      });
+      setError(err.message || "Failed to finalize recovery protocol");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-900 text-white">
-      <MainNavbar />
-      <div className="flex-1 flex flex-col items-center justify-center p-6 relative overflow-hidden pt-20">
-        {/* Background Effects */}
-        <div className="absolute inset-0">
-          <div className="absolute top-0 -left-4 w-96 h-96 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
-          <div className="absolute top-0 -right-4 w-96 h-96 bg-gradient-to-r from-blue-400 to-cyan-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
-          <div className="absolute -bottom-8 left-20 w-96 h-96 bg-gradient-to-r from-teal-400 to-cyan-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
-        </div>
+    <div className="min-h-screen bg-[var(--color-canvas)] text-[var(--color-ink)] flex items-center justify-center relative overflow-hidden font-mono selection:bg-[#E11D48]/30">
+      
+      <div className="absolute inset-0 z-0 pointer-events-none">
+        <div className="absolute inset-0 bg-dot-grid opacity-20 dark:opacity-40" style={{ maskImage: "radial-gradient(circle at center, black 10%, transparent 80%)" }} />
+        <div className="absolute top-1/2 left-1/2 w-[200vw] h-[200vw] -translate-x-1/2 -translate-y-1/2 bg-[conic-gradient(from_90deg_at_50%_50%,rgba(225,29,72,0.1)_0%,transparent_50%)] animate-[spin_4s_linear_infinite]" />
+        <div className="absolute top-1/2 left-1/2 w-[600px] h-[600px] -translate-x-1/2 -translate-y-1/2 bg-[radial-gradient(circle,#E11D48_0%,transparent_60%)] opacity-10 filter blur-[100px]" />
+      </div>
+
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
+        className="relative z-10 w-full max-w-md p-8 sm:p-12 rounded-3xl bg-[var(--color-surface)]/40 backdrop-blur-3xl border border-[var(--color-edge-strong)] shadow-[0_0_80px_rgba(225,29,72,0.1)] overflow-hidden group"
+      >
+        <div className="absolute inset-0 rounded-3xl border border-[#E11D48]/0 group-hover:border-[#E11D48]/30 transition-all duration-700 pointer-events-none box-shadow-[0_0_20px_rgba(225,29,72,0)] group-hover:shadow-[0_0_40px_rgba(225,29,72,0.2)]" />
         
-        <div className="w-full max-w-md relative z-10">
-          <div className="bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl rounded-3xl px-8 py-10">
-            {/* Header */}
-            <div className="text-center mb-8">
-              <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-500 mb-6 shadow-lg">
-                <FiLock className="text-white text-2xl" />
-              </div>
-              <h1 className="text-3xl font-bold mb-2 pb-1 bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">
-                Reset Password
-              </h1>
-              <p className="text-gray-300">Enter your new password below.</p>
+        <div className="mb-10 text-center">
+          <div className="flex justify-center mb-6 relative">
+            <div className="absolute inset-0 bg-[#E11D48]/20 blur-xl rounded-full" />
+            <div className="w-14 h-14 rounded-full border border-[#E11D48]/50 flex items-center justify-center bg-[var(--color-elevated)] relative z-10">
+              <FiShield className="text-[#E11D48] text-2xl" />
             </div>
-
-            {/* Message */}
-            {message.text && (
-              <div className={`mb-6 p-4 rounded-xl text-sm ${
-                message.isError 
-                  ? "bg-red-500/10 border border-red-400/30 text-red-300" 
-                  : "bg-green-500/10 border border-green-400/30 text-green-300"
-              }`}>
-                {message.text}
-              </div>
+          </div>
+          <div className="text-sm text-[#E11D48] flex flex-col gap-1 items-center justify-center min-h-[40px]">
+            {step === 0 && (
+              <TypewriterText text="> Finalizing recovery protocol..." delay={0.2} onComplete={() => setTimeout(() => setStep(1), 500)} />
             )}
-
-            {/* Form */}
-            <form className="space-y-6" onSubmit={handleReset}>
-              <div>
-                <label className="block text-sm font-semibold mb-2 text-gray-200">
-                  New Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Enter new password"
-                    value={password}
-                    onChange={(e) => handlePasswordChange(e.target.value)}
-                    onFocus={() => setShowPasswordHint(true)}
-                    onBlur={() => setShowPasswordHint(false)}
-                    className="w-full px-4 py-3 pr-12 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-300"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-400 hover:scale-110 transition-all duration-200 p-1 rounded-full hover:bg-white/10"
-                  >
-                    {showPassword ? <FiEyeOff className="w-5 h-5" /> : <FiEye className="w-5 h-5" />}
-                  </button>
-                </div>
-                
-                {/* Password Requirements Hint - Show briefly on focus */}
-                {showPasswordHint && !password && (
-                  <div className="mt-2 text-xs text-gray-400 bg-white/5 rounded-lg p-2">
-                    💡 Password must be at least 8 characters with uppercase, lowercase, number, and special character
-                  </div>
-                )}
-                
-                {/* Password Strength Indicator - Only show when password is weak or there's an error */}
-                {(password && !Object.values(passwordStrength).every(Boolean)) && (
-                  <div className="mt-3 space-y-2">
-                    <div className="text-xs text-gray-400 mb-2">Password must contain:</div>
-                    <div className="space-y-1">
-                      <div className={`flex items-center text-xs ${passwordStrength.length ? 'text-green-400' : 'text-red-400'}`}>
-                        <span className={`w-2 h-2 rounded-full mr-2 ${passwordStrength.length ? 'bg-green-400' : 'bg-red-400'}`}></span>
-                        At least 8 characters
-                      </div>
-                      <div className={`flex items-center text-xs ${passwordStrength.uppercase ? 'text-green-400' : 'text-red-400'}`}>
-                        <span className={`w-2 h-2 rounded-full mr-2 ${passwordStrength.uppercase ? 'bg-green-400' : 'bg-red-400'}`}></span>
-                        One uppercase letter (A-Z)
-                      </div>
-                      <div className={`flex items-center text-xs ${passwordStrength.lowercase ? 'text-green-400' : 'text-red-400'}`}>
-                        <span className={`w-2 h-2 rounded-full mr-2 ${passwordStrength.lowercase ? 'bg-green-400' : 'bg-red-400'}`}></span>
-                        One lowercase letter (a-z)
-                      </div>
-                      <div className={`flex items-center text-xs ${passwordStrength.number ? 'text-green-400' : 'text-red-400'}`}>
-                        <span className={`w-2 h-2 rounded-full mr-2 ${passwordStrength.number ? 'bg-green-400' : 'bg-red-400'}`}></span>
-                        One number (0-9)
-                      </div>
-                      <div className={`flex items-center text-xs ${passwordStrength.symbol ? 'text-green-400' : 'text-red-400'}`}>
-                        <span className={`w-2 h-2 rounded-full mr-2 ${passwordStrength.symbol ? 'bg-green-400' : 'bg-red-400'}`}></span>
-                        One special character (!@#$%^&*)
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-              
-              <div>
-                <label className="block text-sm font-semibold mb-2 text-gray-200">
-                  Confirm New Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showConfirmPassword ? "text" : "password"}
-                    placeholder="Confirm new password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full px-4 py-3 pr-12 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-300"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-blue-400 hover:scale-110 transition-all duration-200 p-1 rounded-full hover:bg-white/10"
-                  >
-                    {showConfirmPassword ? <FiEyeOff className="w-5 h-5" /> : <FiEye className="w-5 h-5" />}
-                  </button>
-                </div>
-              </div>
-              
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-600 text-white font-bold rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-              >
-                {loading && (
-                  <svg className="animate-spin h-5 w-5 mr-2 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
-                  </svg>
-                )}
-                {loading ? "Resetting..." : "Reset Password"}
-              </button>
-            </form>
+            {step === 1 && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-[var(--color-ink)] font-sans font-bold text-2xl">
+                Set New Passcode
+              </motion.div>
+            )}
           </div>
         </div>
+
+        <AnimatePresence>
+          {error && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mb-6 overflow-hidden">
+              <div className="px-4 py-3 rounded-lg bg-[#EF4444]/10 border border-[#EF4444]/30 text-sm text-[#EF4444] font-sans flex items-center gap-2">
+                <FiTerminal className="shrink-0" /> {error}
+              </div>
+            </motion.div>
+          )}
+          {success && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="mb-6 overflow-hidden">
+              <div className="px-4 py-3 rounded-lg bg-[#22C55E]/10 border border-[#22C55E]/30 text-sm text-[#4ADE80] font-sans flex items-center gap-2">
+                <FiCheck className="shrink-0" /> {success}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <form onSubmit={handleSubmit} className="space-y-6 font-sans">
+          <div className="relative group/field">
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="block w-full bg-transparent border-0 border-b border-[var(--color-edge-strong)] py-3 pl-2 pr-10 text-[var(--color-ink)] focus:ring-0 focus:border-[#E11D48] transition-colors peer"
+              placeholder=" "
+            />
+            <label className="absolute left-2 top-3 text-[var(--color-muted)] text-sm transition-all peer-focus:-top-4 peer-focus:text-xs peer-focus:text-[#E11D48] peer-[:not(:placeholder-shown)]:-top-4 peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:text-[#E11D48] pointer-events-none">
+              New Passcode
+            </label>
+            <div className="absolute bottom-0 left-0 h-[2px] bg-[#E11D48] w-0 peer-focus:w-full transition-all duration-500 ease-out" />
+          </div>
+
+          <div className="relative group/field">
+            <input
+              type="password"
+              required
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="block w-full bg-transparent border-0 border-b border-[var(--color-edge-strong)] py-3 pl-2 pr-10 text-[var(--color-ink)] focus:ring-0 focus:border-[#E11D48] transition-colors peer"
+              placeholder=" "
+            />
+            <label className="absolute left-2 top-3 text-[var(--color-muted)] text-sm transition-all peer-focus:-top-4 peer-focus:text-xs peer-focus:text-[#E11D48] peer-[:not(:placeholder-shown)]:-top-4 peer-[:not(:placeholder-shown)]:text-xs peer-[:not(:placeholder-shown)]:text-[#E11D48] pointer-events-none">
+              Verify Passcode
+            </label>
+            <div className="absolute bottom-0 left-0 h-[2px] bg-[#E11D48] w-0 peer-focus:w-full transition-all duration-500 ease-out" />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading || step === 0}
+            className="w-full relative overflow-hidden bg-[var(--color-elevated)] border border-[var(--color-edge-strong)] hover:border-[#E11D48]/50 hover:shadow-[0_0_20px_rgba(225,29,72,0.3)] text-[var(--color-ink)] py-4 rounded-xl font-bold tracking-widest uppercase text-sm transition-all group/btn disabled:opacity-50 disabled:cursor-not-allowed mt-4"
+          >
+            <div className="absolute inset-0 bg-[#E11D48]/10 translate-y-full group-hover/btn:translate-y-0 transition-transform duration-300 ease-out" />
+            <span className="relative z-10 flex items-center justify-center gap-2">
+              {loading ? (
+                <>
+                  <svg className="animate-spin h-5 w-5 text-[#E11D48]" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                  </svg>
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <FiLock className="text-[#E11D48]" /> Update Identity
+                </>
+              )}
+            </span>
+          </button>
+        </form>
+
+      </motion.div>
+      
+      <div className="absolute bottom-6 text-[10px] text-[var(--color-faint)] tracking-widest uppercase">
+        CYBERCRUX_SYSTEMS // SECURE_NODE_V2.0
       </div>
-      <Footer />
     </div>
   );
 }

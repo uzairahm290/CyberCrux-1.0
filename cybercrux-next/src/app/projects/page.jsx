@@ -1,13 +1,39 @@
 "use client";
 
-import React, { useState } from "react";
-import DashNav from "@/layouts/DashNav";
-import Footer from "@/layouts/Footer";
-import { FaProjectDiagram, FaSearch, FaStar, FaClock, FaUser, FaEye, FaCode, FaGithub, FaExternalLinkAlt, FaUsers, FaHeart, FaShare, FaPlus, FaFilter, FaLaptop, FaMobile, FaServer } from "react-icons/fa";
-import { BiCategory, BiChevronRight } from "react-icons/bi";
-import { useTheme } from "../../ThemeContext";
+import React, { useState, useEffect, useRef } from "react";
+import Link from "next/link";
+import { useRouter, usePathname } from "next/navigation";
+import {
+  BiHomeAlt, BiBrain, BiTrophy, BiMicrophone, BiMap, BiLaptop,
+  BiBookOpen, BiWrench, BiCode, BiNews, BiMedal, BiSearch, BiStar,
+} from "react-icons/bi";
+import {
+  FiBell, FiSettings, FiUser, FiLogOut, FiChevronDown,
+  FiShield, FiMenu, FiX, FiGithub, FiExternalLink,
+} from "react-icons/fi";
+import {
+  FaFire, FaHeart, FaEye, FaStar, FaGithub, FaExternalLinkAlt,
+  FaProjectDiagram, FaUsers, FaClock, FaServer, FaCode, FaMobile,
+} from "react-icons/fa";
+import { useAuth } from "@/contexts/AuthContext";
+import FloatingChatWidget from "@/components/chatbot/FloatingChatWidget";
 
-// Enhanced projects with more details
+// ─── Nav links ────────────────────────────────────────────────────────────────
+const NAV_LINKS = [
+  { label: "Dashboard",      href: "/dashboard",  Icon: BiHomeAlt    },
+  { label: "Practice",       href: "/practice",   Icon: BiBrain      },
+  { label: "Compete",        href: "/compete",    Icon: BiTrophy     },
+  { label: "Mock Interview", href: "/interviews", Icon: BiMicrophone },
+  { label: "Roadmaps",       href: "/roadmap",    Icon: BiMap        },
+  { label: "Labs",           href: "/labs",       Icon: BiLaptop     },
+  { label: "Books",          href: "/books",      Icon: BiBookOpen   },
+  { label: "Tools",          href: "/tools",      Icon: BiWrench     },
+  { label: "Projects",       href: "/projects",   Icon: BiCode       },
+  { label: "Blog",           href: "/blog",       Icon: BiNews       },
+  { label: "Badges",         href: "/badges",     Icon: BiMedal      },
+];
+
+// ─── Projects data ─────────────────────────────────────────────────────────────
 const projects = [
   {
     id: 1,
@@ -101,7 +127,7 @@ const projects = [
     id: 5,
     title: "Mobile Security Scanner",
     description: "Android and iOS application security scanner with vulnerability assessment and reporting.",
-    category: "mobile",
+    category: "monitoring",
     type: "Mobile App",
     author: "David Kim",
     rating: 4.5,
@@ -123,7 +149,7 @@ const projects = [
     id: 6,
     title: "Cloud Security Assessment Tool",
     description: "Automated cloud security assessment tool for AWS, Azure, and GCP with compliance reporting.",
-    category: "cloud",
+    category: "monitoring",
     type: "CLI Tool",
     author: "Lisa Wang",
     rating: 4.7,
@@ -143,466 +169,435 @@ const projects = [
   },
 ];
 
-const categories = [
-  { id: 'all', name: 'All Projects', count: projects.length },
-  { id: 'defense', name: 'Defense', count: projects.filter(p => p.category === 'defense').length },
-  { id: 'offensive', name: 'Offensive', count: projects.filter(p => p.category === 'offensive').length },
-  { id: 'analysis', name: 'Analysis', count: projects.filter(p => p.category === 'analysis').length },
-  { id: 'mobile', name: 'Mobile', count: projects.filter(p => p.category === 'mobile').length },
-  { id: 'cloud', name: 'Cloud', count: projects.filter(p => p.category === 'cloud').length },
+const FILTER_CATEGORIES = [
+  { id: "all",        label: "All"        },
+  { id: "defense",    label: "Defense"    },
+  { id: "offensive",  label: "Offensive"  },
+  { id: "analysis",   label: "Analysis"   },
+  { id: "monitoring", label: "Monitoring" },
 ];
 
-const projectTypes = [
-  { id: 'all', name: 'All Types', count: projects.length },
-  { id: 'web', name: 'Web Application', count: projects.filter(p => p.type === 'Web Application').length },
-  { id: 'cli', name: 'CLI Tool', count: projects.filter(p => p.type === 'CLI Tool').length },
-  { id: 'desktop', name: 'Desktop Application', count: projects.filter(p => p.type === 'Desktop Application').length },
-  { id: 'mobile', name: 'Mobile App', count: projects.filter(p => p.type === 'Mobile App').length },
-];
+const DIFFICULTIES = ["All", "Beginner", "Intermediate", "Advanced"];
 
-export default function ProjectPage() {
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [selectedType, setSelectedType] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState('featured');
-  const [viewMode, setViewMode] = useState('grid');
-  const [mobileCategoryMenuOpen, setMobileCategoryMenuOpen] = useState(false);
-  const { theme } = useTheme();
-
-  // Filter and sort projects
-  const filteredProjects = projects
-    .filter(project => {
-      const matchesCategory = selectedCategory === 'all' || project.category === selectedCategory;
-      const matchesType = selectedType === 'all' || project.type === selectedType;
-      const matchesSearch = project.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           project.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           project.author.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesCategory && matchesType && matchesSearch;
-    })
-    .sort((a, b) => {
-      switch (sortBy) {
-        case 'featured':
-          return b.featured - a.featured;
-        case 'rating':
-          return b.rating - a.rating;
-        case 'views':
-          return b.views - a.views;
-        case 'newest':
-          return new Date(b.lastUpdated) - new Date(a.lastUpdated);
-        case 'title':
-          return a.title.localeCompare(b.title);
-        default:
-          return 0;
-      }
-    });
-
-  const featuredProjects = projects.filter(project => project.featured);
+// ─── Sidebar ──────────────────────────────────────────────────────────────────
+function Sidebar({ open, onClose, user, onLogout }) {
+  const pathname = usePathname();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-900 text-white">
-      <DashNav />
-      
-      {/* Animated Background */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl animate-pulse delay-500"></div>
-      </div>
+    <>
+      {open && (
+        <div
+          className="fixed inset-0 z-30 bg-black/60 lg:hidden"
+          onClick={onClose}
+        />
+      )}
+      <aside
+        className={`
+          fixed top-0 left-0 z-40 h-full w-60 bg-[#0C0C0C] border-r border-red-900/20
+          flex flex-col transition-transform duration-300
+          ${open ? "translate-x-0" : "-translate-x-full"}
+          lg:translate-x-0 lg:static lg:z-auto
+        `}
+      >
+        {/* Logo */}
+        <div className="flex items-center gap-2.5 px-5 py-5 border-b border-red-900/20">
+          <FiShield className="text-red-500 text-xl flex-shrink-0" />
+          <span className="font-bold text-white text-lg tracking-wide">CyberCrux</span>
+          <button className="ml-auto lg:hidden text-gray-400 hover:text-white" onClick={onClose}>
+            <FiX size={18} />
+          </button>
+        </div>
 
-      <div className="relative z-10">
-        {/* Hero Section */}
-        <section className="text-center py-16 px-4">
-          <div className="max-w-4xl mx-auto">
-            <div className="flex items-center justify-center mb-6">
-              <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
-                <FaProjectDiagram className="text-2xl text-white" />
-              </div>
+        {/* User card */}
+        <div className="px-4 py-4 border-b border-red-900/20">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-red-600/15 border border-red-600/25 flex items-center justify-center flex-shrink-0">
+              <span className="text-red-400 font-semibold text-sm">
+                {user?.username?.[0]?.toUpperCase() || "U"}
+              </span>
             </div>
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 pb-3 bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-              Cybersecurity Projects
-            </h1>
-            <p className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
-              Showcase your cybersecurity skills with real-world projects. Build, collaborate, and contribute 
-              to the community while building your portfolio.
-            </p>
-            <div className="flex items-center justify-center gap-6 text-sm text-gray-400">
-              <span className="flex items-center gap-2">
-                <FaProjectDiagram className="w-4 h-4" />
-                {projects.length} Projects Available
-              </span>
-              <span className="flex items-center gap-2">
-                <FaUsers className="w-4 h-4" />
-                {projects.reduce((total, project) => total + project.collaborators, 0)} Collaborators
-              </span>
+            <div className="min-w-0">
+              <p className="text-white text-sm font-medium truncate">{user?.username || "User"}</p>
+              <p className="text-gray-500 text-xs truncate">{user?.email || "member"}</p>
             </div>
           </div>
-        </section>
+        </div>
 
-        {/* Featured Projects Section */}
-        {featuredProjects.length > 0 && (
-          <section className="px-4 mb-12">
-            <div className="max-w-7xl mx-auto">
-              <div className="flex items-center justify-between mb-8">
-                <h2 className="text-2xl font-bold text-white">Featured Projects</h2>
-                <div className="flex items-center gap-2 text-sm text-gray-400">
-                  <FaStar className="w-4 h-4 text-yellow-400" />
-                  Most Popular
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {featuredProjects.map((project) => (
-                  <div
-                    key={project.id}
-                    className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl hover:shadow-blue-500/20 transition-all duration-300 hover:scale-105"
-                  >
-                    <div className="flex items-start gap-4">
-                      <div className="flex-shrink-0">
-                        {project.icon}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded-full text-xs font-medium">
-                            Featured
-                          </span>
-                          <div className="flex items-center gap-1">
-                            <FaStar className="w-3 h-3 text-yellow-400" />
-                            <span className="text-sm text-gray-300">{project.rating}</span>
-                          </div>
-                        </div>
-                        <h3 className="font-bold text-lg mb-2 text-white line-clamp-2">{project.title}</h3>
-                        <p className="text-gray-400 text-sm mb-3 line-clamp-2">{project.description}</p>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-400">{project.author}</span>
-                          <button className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-all duration-300 transform hover:scale-105">
-                            View Project
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+        {/* Nav */}
+        <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-0.5">
+          {NAV_LINKS.map(({ label, href, Icon }) => {
+            const active = pathname === href || pathname?.startsWith(href + "/");
+            return (
+              <Link
+                key={href}
+                href={href}
+                onClick={onClose}
+                className={`
+                  flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all duration-150
+                  ${active
+                    ? "bg-red-600/12 text-red-400 border border-red-600/18"
+                    : "text-gray-400 hover:text-gray-200 hover:bg-white/5 border border-transparent"
+                  }
+                `}
+              >
+                <Icon className="text-base flex-shrink-0" />
+                <span className="flex-1">{label}</span>
+                {active && <span className="w-1.5 h-1.5 rounded-full bg-red-500 ml-auto" />}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Bottom */}
+        <div className="px-3 pb-4 pt-3 border-t border-red-900/20 space-y-0.5">
+          <Link
+            href="/settings"
+            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-gray-200 hover:bg-white/5 transition-all"
+          >
+            <FiSettings className="text-base" />
+            <span>Settings</span>
+          </Link>
+          <button
+            onClick={onLogout}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-red-400 hover:bg-red-600/8 transition-all"
+          >
+            <FiLogOut className="text-base" />
+            <span>Logout</span>
+          </button>
+        </div>
+      </aside>
+    </>
+  );
+}
+
+// ─── Topbar ───────────────────────────────────────────────────────────────────
+function Topbar({ onMenuClick, user, streak }) {
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropRef = useRef(null);
+  const router  = useRouter();
+  const { logout } = useAuth();
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (dropRef.current && !dropRef.current.contains(e.target)) setDropdownOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const handleLogout = async () => {
+    await logout?.();
+    router.push("/login");
+  };
+
+  return (
+    <header className="h-16 bg-[#0A0A0A] border-b border-red-900/15 flex items-center px-4 gap-3 flex-shrink-0">
+      <button
+        onClick={onMenuClick}
+        className="lg:hidden text-gray-400 hover:text-white transition-colors p-1"
+      >
+        <FiMenu size={20} />
+      </button>
+
+      <h1 className="text-white font-semibold text-base">Projects</h1>
+      <div className="flex-1" />
+
+      {streak > 0 && (
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-500/10 border border-orange-500/20">
+          <FaFire className="text-orange-400 text-xs" />
+          <span className="text-orange-300 text-xs font-semibold">{streak}d</span>
+        </div>
+      )}
+
+      <button className="relative text-gray-400 hover:text-white transition-colors p-2">
+        <FiBell size={18} />
+        <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-red-500" />
+      </button>
+
+      <div className="relative" ref={dropRef}>
+        <button
+          onClick={() => setDropdownOpen((v) => !v)}
+          className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 transition-all"
+        >
+          <div className="w-7 h-7 rounded-full bg-red-600/15 border border-red-600/25 flex items-center justify-center">
+            <span className="text-red-400 font-semibold text-xs">
+              {user?.username?.[0]?.toUpperCase() || "U"}
+            </span>
+          </div>
+          <FiChevronDown
+            size={14}
+            className={`text-gray-400 transition-transform ${dropdownOpen ? "rotate-180" : ""}`}
+          />
+        </button>
+
+        {dropdownOpen && (
+          <div className="absolute right-0 top-full mt-2 w-44 bg-[#111] border border-red-900/20 rounded-xl shadow-2xl overflow-hidden z-50">
+            <div className="px-3 py-2.5 border-b border-red-900/10">
+              <p className="text-white text-sm font-medium truncate">{user?.username || "User"}</p>
+              <p className="text-gray-500 text-xs truncate">{user?.email}</p>
             </div>
-          </section>
+            <Link href="/profile" className="flex items-center gap-2.5 px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-all">
+              <FiUser size={14} /> Profile
+            </Link>
+            <Link href="/settings" className="flex items-center gap-2.5 px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-all">
+              <FiSettings size={14} /> Settings
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-400 hover:bg-red-600/8 transition-all"
+            >
+              <FiLogOut size={14} /> Logout
+            </button>
+          </div>
         )}
-
-        {/* Main Content */}
-        <section className="px-4 pb-16">
-          <div className="max-w-7xl mx-auto">
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-              {/* Desktop Sidebar */}
-              <div className="hidden lg:block lg:col-span-1">
-                <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl sticky top-8">
-                  <h3 className="text-xl font-bold mb-6 text-white">Categories</h3>
-                  <div className="space-y-2 mb-6">
-                    {categories.map((category) => (
-                      <button
-                        key={category.id}
-                        onClick={() => setSelectedCategory(category.id)}
-                        className={`w-full flex items-center justify-between p-3 rounded-xl transition-all duration-300 ${
-                          selectedCategory === category.id
-                            ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
-                            : 'text-gray-300 hover:text-white hover:bg-white/10'
-                        }`}
-                      >
-                        <span className="font-medium">{category.name}</span>
-                        <span className="text-sm bg-white/20 px-2 py-1 rounded-full">
-                          {category.count}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                  
-                  <h3 className="text-xl font-bold mb-6 text-white">Project Types</h3>
-                  <div className="space-y-2">
-                    {projectTypes.map((type) => (
-                      <button
-                        key={type.id}
-                        onClick={() => setSelectedType(type.id)}
-                        className={`w-full flex items-center justify-between p-3 rounded-xl transition-all duration-300 ${
-                          selectedType === type.id
-                            ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-lg'
-                            : 'text-gray-300 hover:text-white hover:bg-white/10'
-                        }`}
-                      >
-                        <span className="font-medium">{type.name}</span>
-                        <span className="text-sm bg-white/20 px-2 py-1 rounded-full">
-                          {type.count}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Mobile Category Menu Button */}
-              <div className="lg:hidden fixed top-1/2 right-98 transform -translate-y-1/2 z-40">
-                <button
-                  onClick={() => setMobileCategoryMenuOpen(true)}
-                  className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white p-3 rounded-2xl shadow-lg transition-all duration-300 transform hover:scale-110"
-                  aria-label="Open Categories"
-                >
-                  <BiCategory className="w-6 h-6" />
-                </button>
-              </div>
-
-              {/* Mobile Category Menu Overlay */}
-              {mobileCategoryMenuOpen && (
-                <div className="lg:hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={() => setMobileCategoryMenuOpen(false)}>
-                  <div 
-                    className="absolute top-1/2 left-4 transform -translate-y-1/2 w-64 bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-900/95 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl transform transition-all duration-300 ease-in-out"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="p-4">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-bold text-white">Categories</h3>
-                        <button
-                          onClick={() => setMobileCategoryMenuOpen(false)}
-                          className="text-white hover:text-blue-400 transition-colors p-1"
-                          aria-label="Close Categories"
-                        >
-                          <BiChevronRight className="w-4 h-4 rotate-180" />
-                        </button>
-                      </div>
-                      <div className="space-y-1 max-h-48 overflow-y-auto">
-                        {categories.map((category) => (
-                          <button
-                            key={category.id}
-                            onClick={() => {
-                              setSelectedCategory(category.id);
-                              setMobileCategoryMenuOpen(false);
-                            }}
-                            className={`w-full flex items-center justify-between p-2 rounded-lg transition-all duration-300 ${
-                              selectedCategory === category.id
-                                ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
-                                : 'text-gray-300 hover:text-white hover:bg-white/10'
-                            }`}
-                          >
-                            <span className="font-medium text-sm">{category.name}</span>
-                            <span className="text-xs bg-white/20 px-2 py-1 rounded-full">
-                              {category.count}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Main Content Area */}
-              <div className="lg:col-span-3">
-                {/* Search and Filter Bar */}
-                <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl mb-8">
-                  <div className="flex flex-col sm:flex-row gap-4">
-                    {/* Search Bar */}
-                    <div className="flex-1 relative">
-                      <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                      <input
-                        type="text"
-                        placeholder="Search projects by title, description, or author..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-                    
-                    {/* Sort Dropdown */}
-                    <select
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value)}
-                      className="px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="featured">Featured First</option>
-                      <option value="rating">Highest Rated</option>
-                      <option value="views">Most Viewed</option>
-                      <option value="newest">Newest First</option>
-                      <option value="title">Alphabetical</option>
-                    </select>
-
-                    {/* View Mode Toggle */}
-                    <div className="flex bg-white/10 rounded-xl p-1">
-                      <button
-                        onClick={() => setViewMode('grid')}
-                        className={`px-3 py-2 rounded-lg transition-all ${
-                          viewMode === 'grid' 
-                            ? 'bg-blue-500 text-white' 
-                            : 'text-gray-300 hover:text-white'
-                        }`}
-                      >
-                        Grid
-                      </button>
-                      <button
-                        onClick={() => setViewMode('list')}
-                        className={`px-3 py-2 rounded-lg transition-all ${
-                          viewMode === 'list' 
-                            ? 'bg-blue-500 text-white' 
-                            : 'text-gray-300 hover:text-white'
-                        }`}
-                      >
-                        List
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Results Count */}
-                <div className="flex items-center justify-between mb-6">
-                  <p className="text-gray-400">
-                    Showing {filteredProjects.length} of {projects.length} projects
-                  </p>
-                </div>
-
-                {/* Projects Grid/List */}
-                {viewMode === 'grid' ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {filteredProjects.map((project) => (
-                      <div
-                        key={project.id}
-                        className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl hover:shadow-blue-500/20 transition-all duration-300 hover:scale-105"
-                      >
-                        <div className="text-center">
-                          <div className="flex justify-center mb-4">
-                            {project.icon}
-                          </div>
-                          <div className="flex items-center justify-center gap-2 mb-3">
-                            <div className="flex items-center gap-1">
-                              <FaStar className="w-4 h-4 text-yellow-400" />
-                              <span className="text-sm text-gray-300">{project.rating}</span>
-                            </div>
-                            <span className="text-gray-500">•</span>
-                            <span className="text-sm text-gray-400">{project.views.toLocaleString()} views</span>
-                          </div>
-                          <h3 className="font-bold text-lg mb-2 text-white line-clamp-2">{project.title}</h3>
-                          <p className="text-gray-400 text-sm mb-4 line-clamp-3">{project.description}</p>
-                          <div className="flex items-center justify-center gap-4 text-xs text-gray-400 mb-4">
-                            <span className="px-2 py-1 bg-white/10 rounded-full">
-                              {project.type}
-                            </span>
-                            <span className="px-2 py-1 bg-white/10 rounded-full">
-                              {project.difficulty}
-                            </span>
-                          </div>
-                          <div className="flex flex-wrap gap-1 mb-4 justify-center">
-                            {project.technologies.slice(0, 3).map((tech, index) => (
-                              <span key={index} className="px-2 py-1 bg-white/10 rounded-full text-xs text-gray-300">
-                                {tech}
-                              </span>
-                            ))}
-                          </div>
-                          <div className="flex gap-2">
-                            <button className="flex-1 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white py-2 rounded-lg font-medium text-sm transition-all duration-300 transform hover:scale-105">
-                              View Project
-                            </button>
-                            {project.github && (
-                              <button className="bg-gray-700 hover:bg-gray-600 text-white p-2 rounded-lg transition-all duration-300 transform hover:scale-105">
-                                <FaGithub className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {filteredProjects.map((project) => (
-                      <div
-                        key={project.id}
-                        className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 shadow-2xl hover:shadow-blue-500/20 transition-all duration-300"
-                      >
-                        <div className="flex items-start gap-6">
-                          <div className="flex-shrink-0">
-                            {project.icon}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-3 mb-2">
-                              <h3 className="font-bold text-xl text-white">{project.title}</h3>
-                              <div className="flex items-center gap-1">
-                                <FaStar className="w-4 h-4 text-yellow-400" />
-                                <span className="text-sm text-gray-300">{project.rating}</span>
-                              </div>
-                            </div>
-                            <p className="text-gray-400 mb-3">{project.description}</p>
-                            <div className="flex items-center gap-6 text-sm text-gray-400 mb-4">
-                              <span className="flex items-center gap-2">
-                                <FaUser className="w-4 h-4" />
-                                {project.author}
-                              </span>
-                              <span className="flex items-center gap-2">
-                                <FaEye className="w-4 h-4" />
-                                {project.views.toLocaleString()} views
-                              </span>
-                              <span className="flex items-center gap-2">
-                                <FaUsers className="w-4 h-4" />
-                                {project.collaborators} collaborators
-                              </span>
-                              <span className="flex items-center gap-2">
-                                <FaClock className="w-4 h-4" />
-                                {project.estimatedTime}
-                              </span>
-                            </div>
-                            <div className="flex flex-wrap gap-2 mb-4">
-                              {project.technologies.map((tech, index) => (
-                                <span key={index} className="px-3 py-1 bg-white/10 rounded-full text-sm text-gray-300">
-                                  {tech}
-                                </span>
-                              ))}
-                            </div>
-                            <div className="flex gap-3">
-                              <button className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-6 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 shadow-lg">
-                                View Project
-                              </button>
-                              {project.github && (
-                                <button className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-3 rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center gap-2">
-                                  <FaGithub className="w-4 h-4" />
-                                  GitHub
-                                </button>
-                              )}
-                              {project.demo && (
-                                <button className="bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center gap-2">
-                                  <FaExternalLinkAlt className="w-4 h-4" />
-                                  Demo
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* No Results */}
-                {filteredProjects.length === 0 && (
-                  <div className="text-center py-12">
-                    <FaProjectDiagram className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-xl font-bold text-gray-300 mb-2">No projects found</h3>
-                    <p className="text-gray-400">Try adjusting your search or filter criteria</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Call to Action */}
-        <section className="px-4 pb-16">
-          <div className="max-w-4xl mx-auto">
-            <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 rounded-3xl p-8 border border-white/20 text-center">
-              <h2 className="text-2xl font-bold mb-4">Ready to showcase your skills?</h2>
-              <p className="text-gray-300 mb-6">
-                Create and share your cybersecurity projects with the community. Build your portfolio and collaborate with other security professionals!
-              </p>
-              <button className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-8 py-3 rounded-xl font-bold transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center gap-2 mx-auto">
-                <FaPlus className="w-4 h-4" />
-                Create New Project
-              </button>
-            </div>
-          </div>
-        </section>
       </div>
-      <Footer />
+    </header>
+  );
+}
+
+// ─── Difficulty badge ─────────────────────────────────────────────────────────
+function DifficultyBadge({ level }) {
+  const map = {
+    Advanced:     "bg-red-500/15 text-red-400 border-red-500/25",
+    Intermediate: "bg-yellow-500/15 text-yellow-400 border-yellow-500/25",
+    Beginner:     "bg-green-500/15 text-green-400 border-green-500/25",
+  };
+  return (
+    <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${map[level] || map.Beginner}`}>
+      {level}
+    </span>
+  );
+}
+
+// ─── Project card ─────────────────────────────────────────────────────────────
+function ProjectCard({ project, onAuthorClick }) {
+  const statusColor =
+    project.status === "Completed"
+      ? "bg-green-500/15 text-green-400 border-green-500/25"
+      : "bg-yellow-500/15 text-yellow-400 border-yellow-500/25";
+
+  const categoryColors = {
+    defense:    "bg-blue-500/12 text-blue-400",
+    offensive:  "bg-red-500/12 text-red-400",
+    analysis:   "bg-purple-500/12 text-purple-400",
+    monitoring: "bg-orange-500/12 text-orange-400",
+    mobile:     "bg-cyan-500/12 text-cyan-400",
+    cloud:      "bg-sky-500/12 text-sky-400",
+  };
+
+  return (
+    <div className="bg-[#0E0E0E] border border-red-900/15 rounded-xl p-5 flex flex-col gap-4 hover:border-red-700/30 hover:bg-[#101010] transition-all duration-200 group">
+      {/* Top badges */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${statusColor}`}>
+            {project.status}
+          </span>
+          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${categoryColors[project.category] || "bg-gray-500/12 text-gray-400"}`}>
+            {project.category.charAt(0).toUpperCase() + project.category.slice(1)}
+          </span>
+        </div>
+        {project.featured && (
+          <FaStar className="text-yellow-400 text-sm flex-shrink-0" title="Featured" />
+        )}
+      </div>
+
+      {/* Title + type tag */}
+      <div>
+        <h3 className="text-white font-bold text-base group-hover:text-red-300 transition-colors line-clamp-1 mb-1">
+          {project.title}
+        </h3>
+        <span className="text-xs px-1.5 py-0.5 bg-white/5 text-gray-500 rounded font-mono">
+          {project.type}
+        </span>
+      </div>
+
+      {/* Description */}
+      <p className="text-gray-400 text-sm line-clamp-2 leading-relaxed">{project.description}</p>
+
+      {/* Tech stack chips */}
+      <div className="flex flex-wrap gap-1.5">
+        {project.technologies.map((tech) => (
+          <span key={tech} className="text-xs px-2 py-0.5 bg-[#1A1A1A] border border-white/8 text-gray-400 rounded-md">
+            {tech}
+          </span>
+        ))}
+      </div>
+
+      {/* Meta row */}
+      <div className="flex items-center gap-4 text-xs text-gray-500">
+        <span className="flex items-center gap-1"><FaEye className="text-gray-600" />{project.views.toLocaleString()}</span>
+        <span className="flex items-center gap-1"><FaHeart className="text-gray-600" />{project.likes}</span>
+        <span className="flex items-center gap-1"><FaUsers className="text-gray-600" />{project.collaborators}</span>
+        <span className="flex items-center gap-1"><FaClock className="text-gray-600" />{project.estimatedTime}</span>
+      </div>
+
+      {/* Footer: links + difficulty */}
+      <div className="flex items-center justify-between pt-1 border-t border-red-900/10">
+        <div className="flex items-center gap-2">
+          {project.github && (
+            <a
+              href={project.github}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/8 text-gray-300 hover:text-white rounded-lg text-xs transition-all"
+            >
+              <FaGithub size={12} /> GitHub
+            </a>
+          )}
+          {project.demo && (
+            <a
+              href={project.demo}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600/10 hover:bg-red-600/20 border border-red-600/20 text-red-400 rounded-lg text-xs transition-all"
+            >
+              <FaExternalLinkAlt size={10} /> Demo
+            </a>
+          )}
+        </div>
+        <DifficultyBadge level={project.difficulty} />
+      </div>
     </div>
   );
-} 
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+export default function ProjectsPage() {
+  const { user, logout } = useAuth();
+  const router = useRouter();
+
+  const [sidebarOpen,        setSidebarOpen]        = useState(false);
+  const [selectedCategory,   setSelectedCategory]   = useState("all");
+  const [selectedDifficulty, setSelectedDifficulty] = useState("All");
+  const [searchQuery,        setSearchQuery]         = useState("");
+
+  const handleLogout = async () => {
+    await logout?.();
+    router.push("/login");
+  };
+
+  const handleUsernameClick = (author) => {
+    router.push(`/profile/${encodeURIComponent(author)}`);
+  };
+
+  const filteredProjects = projects.filter((p) => {
+    const matchCat  = selectedCategory === "all" || p.category === selectedCategory;
+    const matchDiff = selectedDifficulty === "All" || p.difficulty === selectedDifficulty;
+    const q         = searchQuery.toLowerCase();
+    const matchQ    = !q || p.title.toLowerCase().includes(q) ||
+                      p.description.toLowerCase().includes(q) ||
+                      p.author.toLowerCase().includes(q);
+    return matchCat && matchDiff && matchQ;
+  });
+
+  const totalCollaborators = projects.reduce((s, p) => s + p.collaborators, 0);
+  const uniqueCategories   = [...new Set(projects.map((p) => p.category))].length;
+
+  return (
+    <div className="flex h-screen bg-[#080808] text-white overflow-hidden">
+      <Sidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        user={user}
+        onLogout={handleLogout}
+      />
+
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <Topbar
+          onMenuClick={() => setSidebarOpen(true)}
+          user={user}
+          streak={user?.streakDays || 0}
+        />
+
+        <main className="flex-1 overflow-y-auto p-6 space-y-6">
+
+          {/* Stats strip */}
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { label: "Total Projects", value: projects.length },
+              { label: "Categories",     value: uniqueCategories },
+              { label: "Contributors",   value: totalCollaborators },
+            ].map(({ label, value }) => (
+              <div key={label} className="bg-[#0C0C0C] border border-red-900/15 rounded-xl px-5 py-4">
+                <p className="text-2xl font-bold text-white">{value}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{label}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Filter row */}
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center flex-wrap">
+            {/* Category pills */}
+            <div className="flex flex-wrap gap-2">
+              {FILTER_CATEGORIES.map(({ id, label }) => (
+                <button
+                  key={id}
+                  onClick={() => setSelectedCategory(id)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all border ${
+                    selectedCategory === id
+                      ? "bg-red-600/15 text-red-400 border-red-600/30"
+                      : "bg-transparent text-gray-400 border-red-900/15 hover:text-gray-200 hover:border-red-900/30"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex-1" />
+
+            {/* Difficulty filter */}
+            <select
+              value={selectedDifficulty}
+              onChange={(e) => setSelectedDifficulty(e.target.value)}
+              className="bg-[#0C0C0C] border border-red-900/15 text-gray-300 text-sm px-3 py-1.5 rounded-lg focus:outline-none focus:border-red-600/40"
+            >
+              {DIFFICULTIES.map((d) => (
+                <option key={d} value={d} className="bg-[#111]">{d}</option>
+              ))}
+            </select>
+
+            {/* Search */}
+            <div className="relative">
+              <BiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm" />
+              <input
+                type="text"
+                placeholder="Search projects..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="bg-[#0C0C0C] border border-red-900/15 text-gray-300 placeholder-gray-600 text-sm pl-8 pr-3 py-1.5 rounded-lg focus:outline-none focus:border-red-600/40 w-48"
+              />
+            </div>
+          </div>
+
+          {/* Count */}
+          <p className="text-xs text-gray-600">
+            Showing {filteredProjects.length} of {projects.length} projects
+          </p>
+
+          {/* 2-column grid */}
+          {filteredProjects.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {filteredProjects.map((project) => (
+                <ProjectCard
+                  key={project.id}
+                  project={project}
+                  onAuthorClick={handleUsernameClick}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <FaProjectDiagram className="text-4xl text-gray-700 mb-4" />
+              <p className="text-gray-400 font-medium">No projects found</p>
+              <p className="text-gray-600 text-sm mt-1">Try adjusting your filters or search</p>
+            </div>
+          )}
+        </main>
+      </div>
+
+      <FloatingChatWidget />
+    </div>
+  );
+}
