@@ -1,179 +1,228 @@
 "use client";
 
-// src/components/Navbar.jsx
-import { FaSearch, FaBell } from "react-icons/fa";
-import { FaFire } from "react-icons/fa6";
-import { BiDotsHorizontalRounded, BiBook, BiMap, BiWrench, BiHomeAlt, BiSupport, BiGroup, BiMenu, BiX } from "react-icons/bi";
-import { useState, useRef, useEffect } from "react";
-import Link from 'next/link';
+import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import NavLink from "@/components/ui/NavLink";
+import { useTheme } from "@/contexts/ThemeContext";
+import { FiShield, FiMenu, FiX, FiSun, FiMoon } from "react-icons/fi";
+import { BiMap, BiBook, BiWrench, BiHomeAlt, BiCode } from "react-icons/bi";
 
-export default function MainNavbar({ streak }) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef();
-  const [menuLocked, setMenuLocked] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { isAuthenticated, user } = useAuth();
+const navLinks = [
+  { label: "Home",     href: "/" },
+  { label: "Features", href: "/features" },
+  { label: "Blog",     href: "/blog" },
+  { label: "About",    href: "/about-us" },
+];
+
+const mobileLinks = [
+  { label: "Home",     href: "/",          icon: BiHomeAlt },
+  { label: "Features", href: "/features",  icon: BiWrench },
+  { label: "Blog",     href: "/blog",      icon: BiBook },
+  { label: "Roadmaps", href: "/roadmap",   icon: BiMap },
+  { label: "About",    href: "/about-us",  icon: BiCode },
+];
+
+export default function MainNav() {
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [scrolled, setScrolled]     = useState(false);
+  const pathname                     = usePathname();
+  const { isAuthenticated, user }    = useAuth();
+  const { theme, toggleTheme }       = useTheme();
+  const drawerRef                    = useRef(null);
 
   useEffect(() => {
-    function handleClickOutside(event) {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setMenuOpen(false);
-      }
-    }
-    if (menuOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    } else {
-      document.removeEventListener("mousedown", handleClickOutside);
-    }
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [menuOpen]);
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
-  const handleMouseEnter = () => {
-    setMenuOpen(true);
-    setMenuLocked(true);
-  };
-
-  const handleMouseLeave = () => {
-    setMenuLocked(false);
-  };
-
-  const handleButtonClick = () => {
-    setMenuOpen((open) => !open);
-    setMenuLocked(false);
-  };
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const handleKey = (e) => { if (e.key === "Escape") setMobileOpen(false); };
+    document.addEventListener("keydown", handleKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", handleKey);
+      document.body.style.overflow = "";
+    };
+  }, [mobileOpen]);
 
   return (
-    <nav className="sticky top-0 z-50 flex items-center justify-between px-4 md:px-8 py-4 bg-black/50 backdrop-blur-2xl border-b border-white/5 shadow-lg shadow-cyan-500/5">
-      <Link href="/" className="flex items-center gap-3 group">
-        <img src="/src/assets/Logo.png" alt="Logo" className="h-12 group-hover:opacity-80 transition" />
-        <span className="text-2xl font-bold pb-2 bg-gradient-to-r from-cyan-400 to-fuchsia-500 bg-clip-text text-transparent group-hover:opacity-80 transition">
-          CyberCrux
-        </span>
-      </Link>
-      {/* Desktop Nav */}
-      <div className="hidden md:flex items-center gap-10 font-medium text-md relative">
-        <NavLink
-          to="/"
-          className={({ isActive }) =>
-            `transition-all hover:text-cyan-400 hover:underline underline-offset-8 px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-cyan-400 ${
-              isActive ? "underline text-cyan-400 decoration-2 decoration-cyan-400" : "text-white"
-            }`
-          }
-        >
-          Home
-        </NavLink>
-        <NavLink
-          to="/features"
-          className={({ isActive }) =>
-            `transition-all hover:text-cyan-400 hover:underline underline-offset-8 px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-cyan-400 ${
-              isActive ? "underline text-cyan-400 decoration-2 decoration-cyan-400" : "text-white"
-            }`
-          }
-        >
-          Features
-        </NavLink>
-        <NavLink
-          to="/contact"
-          className={({ isActive }) =>
-            `transition-all hover:text-cyan-400 hover:underline underline-offset-8 px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-cyan-400 ${
-              isActive ? "underline text-cyan-400 decoration-2 decoration-cyan-400" : "text-white"
-            }`
-          }
-        >
-          Contact
-        </NavLink>
-        <NavLink
-          to="/about-us"
-          className={({ isActive }) =>
-            `transition-all hover:text-cyan-400 hover:underline underline-offset-8 px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-cyan-400 ${
-              isActive ? "underline text-cyan-400 decoration-2 decoration-cyan-400" : "text-white"
-            }`
-          }
-        >
-          About Us
-        </NavLink>
-      </div>
-      {/* Desktop Buttons */}
-      <div className="hidden md:flex items-center gap-4">
-        {!isAuthenticated ? (
-          <>
-            <Link href="/login" className="px-5 py-1.5 rounded-xl border border-cyan-400 text-white font-semibold text-base shadow-sm hover:bg-cyan-500/10 hover:text-cyan-400 tracking-wide transition-all focus:outline-none focus:ring-2 focus:ring-cyan-400">
-              Log In
-            </Link>
-            <Link href="/signup" className="px-5 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-fuchsia-500 text-white font-semibold text-base shadow-sm hover:from-cyan-600 hover:to-fuchsia-600 tracking-wide transition-all focus:outline-none focus:ring-2 focus:ring-cyan-400">
-              Join Now
-            </Link>
-          </>
-        ) : (
-          <>
-            <span className="text-white/80 text-sm">Welcome, {user?.username}</span>
-            <Link href="/dashboard" className="px-5 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500 via-fuchsia-500 to-purple-500 text-white font-semibold text-base shadow-sm hover:from-cyan-600 hover:via-fuchsia-600 hover:to-purple-600 tracking-wide transition-all focus:outline-none focus:ring-2 focus:ring-fuchsia-400">
-              Dashboard
-            </Link>
-          </>
-        )}
-      </div>
-      {/* Mobile Hamburger */}
-      <div className="md:hidden flex items-center">
-        <button
-          className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-white/10 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400"
-          onClick={() => setMobileMenuOpen((open) => !open)}
-          aria-label="Open menu"
-        >
-          <BiMenu className="text-2xl text-white" />
-        </button>
-      </div>
-      {/* Mobile Menu */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40" onClick={() => setMobileMenuOpen(false)}>
-          <div className="absolute top-0 right-0 w-72 bg-gradient-to-br from-black via-slate-950 to-purple-950/90 backdrop-blur-2xl shadow-2xl shadow-cyan-400/10 border-l border-white/5 rounded-l-2xl py-8 px-6 flex flex-col gap-4 animate-fade-in" onClick={e => e.stopPropagation()}>
-            <button className="absolute top-4 right-4 text-3xl text-white hover:text-cyan-400 focus:outline-none" onClick={() => setMobileMenuOpen(false)} aria-label="Close menu">
-              <BiX />
+    <>
+      <nav
+        className={`sticky top-0 z-50 transition-all duration-300 ${
+          scrolled
+            ? "bg-[var(--color-canvas)]/90 backdrop-blur-xl border-b border-[var(--color-edge)] shadow-[0_1px_0_rgba(225,29,72,0.05)]"
+            : "bg-transparent"
+        }`}
+      >
+        <div className="max-w-7xl mx-auto px-4 md:px-6 h-14 flex items-center justify-between">
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-2 shrink-0 group">
+            <div className="w-7 h-7 rounded-lg bg-[#E11D48] flex items-center justify-center transition-opacity group-hover:opacity-85 shadow-[0_0_10px_rgba(225,29,72,0.3)]">
+              <FiShield className="text-white text-sm" />
+            </div>
+            <span className="text-[var(--color-ink)] font-semibold text-base tracking-tight group-hover:text-[#E11D48] transition-colors">CyberCrux</span>
+          </Link>
+
+          {/* Desktop nav */}
+          <div className="hidden md:flex items-center gap-1 font-mono uppercase tracking-wider">
+            {navLinks.map(({ label, href }) => {
+              const active = pathname === href || (href !== "/" && pathname.startsWith(href));
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors duration-150 ${
+                    active
+                      ? "text-[#E11D48] bg-[#E11D48]/10"
+                      : "text-[var(--color-muted)] hover:text-[#E11D48] hover:bg-[#E11D48]/5"
+                  }`}
+                >
+                  {label}
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* Desktop actions */}
+          <div className="hidden md:flex items-center gap-2">
+            <button onClick={toggleTheme} className="p-2 rounded-full text-[var(--color-muted)] hover:text-[#E11D48] hover:bg-[#E11D48]/10 transition-colors mr-2">
+              {theme === 'light' ? <FiMoon className="text-lg" /> : <FiSun className="text-lg" />}
             </button>
-            <div className="mt-8" />
-            {/* Mobile Navigation Links */}
-            <Link href="/" className="flex items-center gap-3 text-white font-semibold py-3 px-4 rounded-lg hover:bg-cyan-400/10 hover:text-cyan-400 transition-all" onClick={() => setMobileMenuOpen(false)}>
-              <BiHomeAlt className="text-xl" />
-              Home
-            </Link>
-            <Link href="/features" className="flex items-center gap-3 text-white font-semibold py-3 px-4 rounded-lg hover:bg-fuchsia-400/10 hover:text-fuchsia-400 transition-all" onClick={() => setMobileMenuOpen(false)}>
-              <BiGroup className="text-xl" />
-              Features
-            </Link>
-            <Link href="/blog" className="flex items-center gap-3 text-white font-semibold py-3 px-4 rounded-lg hover:bg-pink-400/10 hover:text-pink-400 transition-all" onClick={() => setMobileMenuOpen(false)}>
-              <BiBook className="text-xl" />
-              Blog
-            </Link>
-            <Link href="/about-us" className="flex items-center gap-3 text-white font-semibold py-3 px-4 rounded-lg hover:bg-cyan-400/10 hover:text-cyan-400 transition-all" onClick={() => setMobileMenuOpen(false)}>
-              <BiSupport className="text-xl" />
-              About Us
-            </Link>
-            <div className="border-t border-white/10 my-4" />
-            {/* Mobile Auth Buttons */}
             {!isAuthenticated ? (
               <>
-                <Link href="/login" className="w-full px-5 py-3 rounded-xl border border-cyan-400 text-white font-semibold text-base shadow-sm hover:bg-cyan-500/10 hover:text-cyan-400 tracking-wide transition-all mb-3" onClick={() => setMobileMenuOpen(false)}>
-                  Log In
+                <Link
+                  href="/login"
+                  className="px-4 py-1.5 rounded-md text-xs font-bold font-mono tracking-widest uppercase text-[var(--color-muted)] hover:text-[#E11D48] transition-colors duration-150"
+                >
+                  Log in
                 </Link>
-                <Link href="/signup" className="w-full px-5 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-fuchsia-600 text-white font-semibold text-base shadow-sm hover:from-cyan-600 hover:to-fuchsia-600 tracking-wide transition-all" onClick={() => setMobileMenuOpen(false)}>
-                  Join Now
+                <Link
+                  href="/signup"
+                  className="btn-primary text-xs font-bold font-mono tracking-widest uppercase py-1.5 px-4"
+                >
+                  Deploy
                 </Link>
               </>
             ) : (
               <>
-                <div className="w-full px-5 py-3 text-white font-semibold text-base mb-3">
-                  Welcome, {user?.username}
-                </div>
-                <Link href="/dashboard" className="w-full px-5 py-3 rounded-xl bg-gradient-to-r from-cyan-500 via-fuchsia-500 to-purple-500 text-white font-semibold text-base shadow-sm hover:from-cyan-600 hover:via-fuchsia-600 hover:to-purple-600 tracking-wide transition-all" onClick={() => setMobileMenuOpen(false)}>
-                  Dashboard
+                <span className="text-[#E11D48] text-xs font-mono font-bold tracking-widest uppercase px-2">
+                  OP: {user?.username}
+                </span>
+                <Link href="/dashboard" className="btn-primary text-xs font-bold font-mono tracking-widest uppercase py-1.5 px-4">
+                  Terminal
                 </Link>
               </>
             )}
           </div>
+
+          {/* Mobile hamburger */}
+          <button
+            className="md:hidden p-2 rounded-md text-[var(--color-muted)] hover:text-[#E11D48] hover:bg-[#E11D48]/10 transition-colors"
+            onClick={() => setMobileOpen(true)}
+            aria-label="Open navigation"
+          >
+            <FiMenu className="text-lg" />
+          </button>
+        </div>
+      </nav>
+
+      {/* Mobile drawer overlay */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm"
+          onClick={() => setMobileOpen(false)}
+        >
+          <div
+            ref={drawerRef}
+            className="absolute top-0 right-0 h-full w-72 bg-[var(--color-surface)] border-l border-[var(--color-edge-strong)] flex flex-col animate-slide-right shadow-[-20px_0_50px_rgba(225,29,72,0.1)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Drawer header */}
+            <div className="h-14 flex items-center justify-between px-5 border-b border-[var(--color-edge)]">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-md bg-[#E11D48] flex items-center justify-center shadow-[0_0_10px_rgba(225,29,72,0.3)]">
+                  <FiShield className="text-white text-xs" />
+                </div>
+                <span className="text-[var(--color-ink)] font-semibold text-sm">CyberCrux</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={toggleTheme}
+                  className="p-1.5 rounded-md text-[var(--color-muted)] hover:text-[#E11D48] hover:bg-[#E11D48]/10 transition-colors"
+                  aria-label="Toggle theme"
+                >
+                  {theme === 'light' ? <FiMoon className="text-lg" /> : <FiSun className="text-lg" />}
+                </button>
+                <button
+                  onClick={() => setMobileOpen(false)}
+                  className="p-1.5 rounded-md text-[var(--color-muted)] hover:text-[#E11D48] hover:bg-[#E11D48]/10 transition-colors"
+                  aria-label="Close navigation"
+                >
+                  <FiX className="text-lg" />
+                </button>
+              </div>
+            </div>
+
+            {/* Nav links */}
+            <nav className="flex-1 px-3 py-4 overflow-y-auto font-mono uppercase tracking-wider">
+              <div className="space-y-1">
+                {mobileLinks.map(({ label, href, icon: Icon }, i) => {
+                  const active = pathname === href || (href !== "/" && pathname.startsWith(href));
+                  return (
+                    <Link
+                      key={href}
+                      href={href}
+                      onClick={() => setMobileOpen(false)}
+                      style={{ animationDelay: `${i * 40}ms` }}
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-bold transition-colors duration-150 animate-fade-in-up ${
+                        active
+                          ? "text-[#E11D48] bg-[#E11D48]/10 border border-[#E11D48]/20"
+                          : "text-[var(--color-muted)] hover:text-[#E11D48] hover:bg-[#E11D48]/5"
+                      }`}
+                    >
+                      <Icon className="text-base shrink-0" />
+                      {label}
+                    </Link>
+                  );
+                })}
+              </div>
+            </nav>
+
+            {/* Auth actions */}
+            <div className="px-4 py-5 border-t border-[var(--color-edge)] space-y-2 font-mono uppercase tracking-widest">
+              {!isAuthenticated ? (
+                <>
+                  <Link
+                    href="/login"
+                    onClick={() => setMobileOpen(false)}
+                    className="btn-ghost w-full text-xs font-bold py-2"
+                  >
+                    Log in
+                  </Link>
+                  <Link
+                    href="/signup"
+                    onClick={() => setMobileOpen(false)}
+                    className="btn-primary w-full text-xs font-bold py-2"
+                  >
+                    Deploy
+                  </Link>
+                </>
+              ) : (
+                <Link
+                  href="/dashboard"
+                  onClick={() => setMobileOpen(false)}
+                  className="btn-primary w-full text-xs font-bold py-2"
+                >
+                  Terminal
+                </Link>
+              )}
+            </div>
+          </div>
         </div>
       )}
-    </nav>
+    </>
   );
 }

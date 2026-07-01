@@ -1,496 +1,456 @@
 "use client";
-import { useRouter } from 'next/navigation';
 
-
-import { BiDotsHorizontalRounded, BiBook, BiMap, BiWrench, BiHomeAlt, BiSupport, BiGroup, BiMenu, BiX, BiCode } from "react-icons/bi";
-import React, { useState, useRef, useEffect } from "react";
-import { FaUserCircle, FaSignOutAlt, FaCog, FaMedal, FaMoon, FaSun, FaSearch , FaBell} from "react-icons/fa";
-import Link from 'next/link';
-import { useTheme } from "../ThemeContext";
+import { useState, useRef, useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
+import {
+  FiShield, FiSearch, FiBell, FiMenu, FiX, FiSettings,
+  FiUser, FiLogOut, FiChevronDown, FiSun, FiMoon,
+} from "react-icons/fi";
+import {
+  BiMap, BiBook, BiWrench, BiHomeAlt, BiCode, BiTrophy,
+  BiBrain, BiMicrophone, BiMedal,
+} from "react-icons/bi";
+import { FaFire } from "react-icons/fa";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import SearchModal from "@/components/ui/SearchModal";
-import NavLink from "@/components/ui/NavLink";
 
-export default function DashNav({ streak }) {
-  // Add custom CSS for hiding scrollbars
-  useEffect(() => {
-    const style = document.createElement('style');
-    style.textContent = `
-      .scrollbar-hide {
-        -ms-overflow-style: none;
-        scrollbar-width: none;
-      }
-      .scrollbar-hide::-webkit-scrollbar {
-        display: none;
-      }
-    `;
-    document.head.appendChild(style);
-    return () => document.head.removeChild(style);
-  }, []);
+const primaryLinks = [
+  { label: "Dashboard",  href: "/dashboard" },
+  { label: "Practice",   href: "/practice" },
+  { label: "Compete",    href: "/compete" },
+  { label: "Mock",       href: "/interviews" },
+];
 
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef();
-  const [menuLocked, setMenuLocked] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [searchModalOpen, setSearchModalOpen] = useState(false);
+const moreLinks = [
+  { label: "Roadmaps",  href: "/roadmap",   icon: BiMap },
+  { label: "Books",     href: "/books",     icon: BiBook },
+  { label: "Tools",     href: "/tools",     icon: BiWrench },
+  { label: "Labs",      href: "/labs",      icon: BiHomeAlt },
+  { label: "Projects",  href: "/projects",  icon: BiCode },
+  { label: "Blog",      href: "/blog",      icon: BiBook },
+];
+
+const mobileLinks = [
+  { label: "Dashboard",  href: "/dashboard",  icon: BiHomeAlt },
+  { label: "Practice",   href: "/practice",   icon: BiBrain },
+  { label: "Compete",    href: "/compete",    icon: BiTrophy },
+  { label: "Mock",       href: "/interviews", icon: BiMicrophone },
+  { label: "Roadmaps",   href: "/roadmap",    icon: BiMap },
+  { label: "Books",      href: "/books",      icon: BiBook },
+  { label: "Tools",      href: "/tools",      icon: BiWrench },
+  { label: "Labs",       href: "/labs",       icon: BiHomeAlt },
+  { label: "Badges",     href: "/badges",     icon: BiMedal },
+  { label: "Blog",       href: "/blog",       icon: BiBook },
+];
+
+function NotifIcon(type) {
+  const map = {
+    badge:       <BiMedal className="text-[#F59E0B]" />,
+    scenario:    <BiBrain className="text-[#5B4FF5]" />,
+    achievement: <BiMedal className="text-[#22C55E]" />,
+    system:      <FiSettings className="text-[#8888AA]" />,
+  };
+  return map[type] || <FiBell className="text-[#8888AA]" />;
+}
+
+export default function DashNav() {
+  const router   = useRouter();
+  const pathname = usePathname();
+  const { user, logout }       = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const { user, logout } = useAuth();
-  const [profilePic, setProfilePic] = useState(null);
-  const [isTouch, setIsTouch] = useState(false);
-  const dropdownRef = useRef(null);
-  const router = useRouter();
+
+  const [mobileOpen,  setMobileOpen]  = useState(false);
+  const [moreOpen,    setMoreOpen]    = useState(false);
+  const [userOpen,    setUserOpen]    = useState(false);
+  const [notifOpen,   setNotifOpen]   = useState(false);
+  const [searchOpen,  setSearchOpen]  = useState(false);
+  const [profilePic,  setProfilePic]  = useState(null);
   const [notifications, setNotifications] = useState([]);
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadCount,   setUnreadCount]   = useState(0);
 
-  useEffect(() => {
-    setIsTouch(
-      "ontouchstart" in window ||
-      navigator.maxTouchPoints > 0 ||
-      window.matchMedia("(pointer: coarse)").matches
-    );
-  }, []);
+  const moreRef  = useRef(null);
+  const userRef  = useRef(null);
+  const notifRef = useRef(null);
 
+  /* ── Keyboard shortcut ───────────────────────────── */
   useEffect(() => {
-    const fetchProfilePic = async () => {
-      try {
-        const response = await fetch((process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555') + '/api/auth/me', {
-          credentials: 'include'
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setProfilePic(data.user?.profile_pic || null);
-        } else {
-          setProfilePic(null);
-        }
-      } catch (error) {
-        setProfilePic(null);
-      }
-    };
-    fetchProfilePic();
-  }, []);
-
-  useEffect(() => {
-    if (!user) return;
-    
-    // Fetch notifications
-    fetchNotifications();
-    
-    // Set up interval to check for new notifications every 30 seconds
-    const interval = setInterval(fetchNotifications, 30000);
-    
-    return () => clearInterval(interval);
-  }, [user]);
-
-  // Keyboard shortcut for search (Ctrl+K or Cmd+K)
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    const handler = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
         e.preventDefault();
-        setSearchModalOpen(true);
+        setSearchOpen(true);
       }
     };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
   }, []);
 
+  /* ── Profile pic ─────────────────────────────────── */
   useEffect(() => {
-    function handleClickOutside(event) {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setMenuOpen(false);
-      }
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setDropdownOpen(false);
-      }
-      // Close notifications dropdown when clicking outside
-      if (showNotifications && !event.target.closest('.notifications-dropdown')) {
-        setShowNotifications(false);
-      }
-    }
-    if (menuOpen || showNotifications) {
-      document.addEventListener("mousedown", handleClickOutside);
-    } else {
-      document.removeEventListener("mousedown", handleClickOutside);
-    }
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [menuOpen, showNotifications]);
+    const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5555";
+    fetch(`${API}/api/auth/me`, { credentials: "include" })
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => setProfilePic(d?.user?.profile_pic || null))
+      .catch(() => {});
+  }, []);
 
-  // For mobile: close dropdown on outside tap
-  useEffect(() => {
-    if (!isTouch || !dropdownOpen) return;
-    function handleClickOutside(event) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setDropdownOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [isTouch, dropdownOpen]);
-
-  const handleMouseEnter = () => {
-    setMenuOpen(true);
-    setMenuLocked(true);
-  };
-
-  const handleMouseLeave = () => {
-    setMenuLocked(false);
-  };
-
-  const handleButtonClick = () => {
-    setMenuOpen((open) => !open);
-    setMenuLocked(false);
-  };
-
-  const handleLogout = async () => {
-    try {
-      const response = await fetch((process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555') + '/api/auth/logout', {
-        method: 'POST',
-        credentials: 'include',
-      });
-      if (!response.ok) {
-        throw new Error('Logout failed');
-      }
-      logout(); // Clear user from context
-      router.push('/login');
-    } catch (err) {
-      alert('Logout failed. Please try again.');
-    }
-  };
-
-  const handleThemeToggle = () => {
-    toggleTheme();
-  };
-
-  // Fetch notifications including badge notifications
+  /* ── Notifications ───────────────────────────────── */
   const fetchNotifications = async () => {
     if (!user) return;
-    
+    const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5555";
     try {
-      const response = await fetch((process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555') + '/api/notifications', {
-        credentials: 'include'
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setNotifications(data.notifications || []);
-        setUnreadCount(data.notifications?.filter(n => !n.is_read).length || 0);
+      const r = await fetch(`${API}/api/notifications`, { credentials: "include" });
+      if (r.ok) {
+        const d = await r.json();
+        const list = d.notifications || [];
+        setNotifications(list);
+        setUnreadCount(list.filter((n) => !n.is_read).length);
       }
-    } catch (error) {
-      console.error('Error fetching notifications:', error);
-    }
+    } catch (_) {}
   };
 
-  // Mark notification as read
-  const markAsRead = async (notificationId) => {
-    try {
-      await fetch(`${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555')}/api/notifications/${notificationId}/read`, {
-        method: 'PUT',
-        credentials: 'include'
-      });
-      
-      setNotifications(prev => 
-        prev.map(n => n.id === notificationId ? { ...n, is_read: true } : n)
-      );
-      setUnreadCount(prev => Math.max(0, prev - 1));
-    } catch (error) {
-      console.error('Error marking notification as read:', error);
-    }
+  useEffect(() => {
+    if (!user) return;
+    fetchNotifications();
+    const id = setInterval(fetchNotifications, 30_000);
+    return () => clearInterval(id);
+  }, [user]);
+
+  const markRead = async (id) => {
+    const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5555";
+    await fetch(`${API}/api/notifications/${id}/read`, { method: "PUT", credentials: "include" }).catch(() => {});
+    setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, is_read: true } : n));
+    setUnreadCount((c) => Math.max(0, c - 1));
   };
 
-  // Clear all notifications
-  const clearAllNotifications = async () => {
-    try {
-      await fetch((process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555') + '/api/notifications/clear', {
-        method: 'DELETE',
-        credentials: 'include'
-      });
-      
-      setNotifications([]);
-      setUnreadCount(0);
-      setShowNotifications(false);
-    } catch (error) {
-      console.error('Error clearing notifications:', error);
-    }
+  const clearAll = async () => {
+    const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5555";
+    await fetch(`${API}/api/notifications/clear`, { method: "DELETE", credentials: "include" }).catch(() => {});
+    setNotifications([]);
+    setUnreadCount(0);
+    setNotifOpen(false);
   };
+
+  /* ── Click-outside ───────────────────────────────── */
+  useEffect(() => {
+    const handler = (e) => {
+      if (moreRef.current  && !moreRef.current.contains(e.target))  setMoreOpen(false);
+      if (userRef.current  && !userRef.current.contains(e.target))  setUserOpen(false);
+      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  /* ── Logout ──────────────────────────────────────── */
+  const handleLogout = async () => {
+    const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5555";
+    try {
+      await fetch(`${API}/api/auth/logout`, { method: "POST", credentials: "include" });
+    } catch (_) {}
+    logout();
+    router.push("/login");
+  };
+
+  const isActive = (href) =>
+    pathname === href || (href !== "/" && pathname.startsWith(href));
 
   return (
-    <nav className="sticky top-0 z-50 flex items-center justify-between px-4 md:px-8 py-4 bg-white/10 backdrop-blur-xl border-b border-white/10 shadow-lg shadow-blue-500/10">
-      {/* Hamburger (mobile only, left) */}
-      <button
-        className="block md:hidden mr-2"
-        onClick={() => setMobileMenuOpen((open) => !open)}
-        aria-label="Open menu"
-      >
-        <BiMenu className="text-2xl text-white" />
-      </button>
-
-      {/* Logo + Brand (desktop only, center/left) */}
-      <Link href="/" className="hidden md:flex items-center gap-3 group">
-        <img src="/src/assets/Logo.png" alt="Logo" className="h-10 group-hover:opacity-80 transition" />
-        <span className="text-2xl font-bold bg-gradient-to-r from-blue-300 to-purple-300 bg-clip-text text-transparent group-hover:opacity-80 transition">
-          CyberCrux
-        </span>
-      </Link>
-
-      {/* Desktop Nav */}
-      <div className="hidden md:flex ml-10 items-center gap-6 font-medium text-md relative">
-        <NavLink
-          to="/dashboard"
-          className={({ isActive }) =>
-            `transition-all hover:text-blue-400 hover:underline underline-offset-8 px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-blue-400 ${
-              isActive ? "underline text-blue-400 decoration-2 decoration-blue-400" : "text-white"
-            }`
-          }
-        >
-          Dashboard
-        </NavLink>
-        <NavLink
-          to="/practice"
-          className={({ isActive }) =>
-            `transition-all hover:text-blue-400 hover:underline underline-offset-8 px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-blue-400 ${
-              isActive ? "underline text-blue-400 decoration-2 decoration-blue-400" : "text-white"
-            }`
-          }
-        >
-          Practice
-        </NavLink>
-        <NavLink
-          to="/compete"
-          className={({ isActive }) =>
-            `transition-all hover:text-blue-400 hover:underline underline-offset-8 px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-blue-400 ${
-              isActive ? "underline text-blue-400 decoration-2 decoration-blue-400" : "text-white"
-            }`
-          }
-        >
-          Compete
-        </NavLink>
-        <NavLink
-          to="/interviews"
-          className={({ isActive }) =>
-            `transition-all hover:text-blue-400 hover:underline underline-offset-8 px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-blue-400 ${
-              isActive ? "underline text-blue-400 decoration-2 decoration-blue-400" : "text-white"
-            }`
-          }
-        >
-          Mock
-        </NavLink>
-        <div
-          className="relative flex items-center"
-          ref={menuRef}
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
-        >
-          <button
-            className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-white/10 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400"
-            onClick={handleButtonClick}
-            aria-haspopup="true"
-            aria-expanded={menuOpen}
-            aria-label="More"
-            tabIndex={0}
-          >
-            <BiDotsHorizontalRounded className="text-2xl text-white" />
-          </button>
-          {menuOpen && (
-            <div className="absolute left-0 mt-10 top-0 w-56 bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-900/90 backdrop-blur-2xl shadow-lg shadow-blue-400/30 border border-blue-400/20 rounded-xl py-2 flex flex-col z-50 animate-fade-in">
-              <NavLink to="/roadmap" className={({ isActive }) => `flex items-center gap-3 px-5 py-3 text-white font-semibold hover:bg-blue-400/10 hover:text-blue-400 rounded-lg transition-all ${isActive ? 'underline text-blue-400 decoration-2 decoration-blue-400' : ''}` } onClick={() => { setMenuOpen(false); setMenuLocked(false); }}><BiMap className="text-xl" />Roadmaps</NavLink>
-              <NavLink to="/books" className={({ isActive }) => `flex items-center gap-3 px-5 py-3 text-white font-semibold hover:bg-blue-400/10 hover:text-blue-400 rounded-lg transition-all ${isActive ? 'underline text-blue-400 decoration-2 decoration-blue-400' : ''}` } onClick={() => { setMenuOpen(false); setMenuLocked(false); }}><BiBook className="text-xl" />Books</NavLink>
-              <NavLink to= "/tools" className={({ isActive }) => `flex items-center gap-3 px-5 py-3 text-white font-semibold hover:bg-blue-400/10 hover:text-blue-400 rounded-lg transition-all ${isActive ? 'underline text-blue-400 decoration-2 decoration-blue-400' : ''}` } onClick={() => { setMenuOpen(false); setMenuLocked(false); }}><BiWrench className="text-xl" />Tools</NavLink>
-              <NavLink to= "/labs" className={({ isActive }) => `flex items-center gap-3 px-5 py-3 text-white font-semibold hover:bg-blue-400/10 hover:text-blue-400 rounded-lg transition-all ${isActive ? 'underline text-blue-400 decoration-2 decoration-blue-400' : ''}` } onClick={() => { setMenuOpen(false); setMenuLocked(false); }}><BiHomeAlt className="text-xl" />Home Labs</NavLink>
-              <NavLink to= "/projects" className={({ isActive }) => `flex items-center gap-3 px-5 py-3 text-white font-semibold hover:bg-blue-400/10 hover:text-blue-400 rounded-lg transition-all ${isActive ? 'underline text-blue-400 decoration-2 decoration-blue-400' : ''}` } onClick={() => { setMenuOpen(false); setMenuLocked(false); }}><BiCode className="text-xl" />Projects</NavLink>
-              <NavLink to= "/blog" className={({ isActive }) => `flex items-center gap-3 px-5 py-3 text-white font-semibold hover:bg-blue-400/10 hover:text-blue-400 rounded-lg transition-all ${isActive ? 'underline text-blue-400 decoration-2 decoration-blue-400' : ''}` } onClick={() => { setMenuOpen(false); setMenuLocked(false); }}><BiCode className="text-xl" />Blogs</NavLink>
-
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Action Icons (always right, mobile and desktop) */}
-      <div className="flex items-center gap-6 ml-auto">
+    <>
+      <nav className="sticky top-0 z-50 h-14 flex items-center px-4 md:px-6 bg-[rgba(10,10,15,0.95)] backdrop-blur-xl border-b border-[rgba(255,255,255,0.07)]">
+        {/* Mobile hamburger */}
         <button
-          onClick={() => setSearchModalOpen(true)}
-          className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-          aria-label="Search"
+          className="md:hidden mr-3 p-1.5 rounded-md text-[#8888AA] hover:text-[#F0F0FF] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
+          onClick={() => setMobileOpen(true)}
+          aria-label="Open menu"
         >
-          <FaSearch className="text-white text-xl hover:text-blue-400 transition-colors" />
+          <FiMenu className="text-lg" />
         </button>
-        <div className="relative">
-          <button
-            onClick={() => setShowNotifications(!showNotifications)}
-            className="relative p-2 hover:bg-white/10 rounded-lg transition-colors"
-            aria-label="Notifications"
-          >
-            <FaBell className="text-white text-xl hover:text-blue-400 transition-colors" />
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
+
+        {/* Logo */}
+        <Link href="/dashboard" className="hidden md:flex items-center gap-2 shrink-0 group mr-8">
+          <div className="w-7 h-7 rounded-lg bg-[#5B4FF5] flex items-center justify-center transition-opacity group-hover:opacity-85">
+            <FiShield className="text-white text-sm" />
+          </div>
+          <span className="text-[#F0F0FF] font-semibold text-base tracking-tight">CyberCrux</span>
+        </Link>
+
+        {/* Desktop primary nav */}
+        <div className="hidden md:flex items-center gap-1 flex-1">
+          {primaryLinks.map(({ label, href }) => (
+            <Link
+              key={href}
+              href={href}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors duration-150 ${
+                isActive(href)
+                  ? "text-[#F0F0FF] bg-[rgba(255,255,255,0.06)]"
+                  : "text-[#8888AA] hover:text-[#F0F0FF] hover:bg-[rgba(255,255,255,0.04)]"
+              }`}
+            >
+              {label}
+            </Link>
+          ))}
+
+          {/* More dropdown */}
+          <div className="relative" ref={moreRef}>
+            <button
+              onClick={() => setMoreOpen((o) => !o)}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1 transition-colors duration-150 ${
+                moreOpen
+                  ? "text-[#F0F0FF] bg-[rgba(255,255,255,0.06)]"
+                  : "text-[#8888AA] hover:text-[#F0F0FF] hover:bg-[rgba(255,255,255,0.04)]"
+              }`}
+            >
+              More
+              <FiChevronDown
+                className={`text-xs transition-transform duration-150 ${moreOpen ? "rotate-180" : ""}`}
+              />
+            </button>
+            {moreOpen && (
+              <div className="absolute left-0 top-full mt-1 w-44 bg-[#111118] border border-[rgba(255,255,255,0.09)] rounded-lg shadow-[0_8px_32px_rgba(0,0,0,0.5)] py-1 animate-slide-down z-50">
+                {moreLinks.map(({ label, href, icon: Icon }) => (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={() => setMoreOpen(false)}
+                    className={`flex items-center gap-2.5 px-3 py-2 text-sm transition-colors ${
+                      isActive(href)
+                        ? "text-[#F0F0FF] bg-[rgba(91,79,245,0.1)]"
+                        : "text-[#8888AA] hover:text-[#F0F0FF] hover:bg-[rgba(255,255,255,0.04)]"
+                    }`}
+                  >
+                    <Icon className="text-base shrink-0" />
+                    {label}
+                  </Link>
+                ))}
+              </div>
             )}
+          </div>
+        </div>
+
+        {/* Right actions */}
+        <div className="flex items-center gap-1 ml-auto">
+          {/* Search */}
+          <button
+            onClick={() => setSearchOpen(true)}
+            className="p-2 rounded-md text-[#8888AA] hover:text-[#F0F0FF] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
+            aria-label="Search (⌘K)"
+          >
+            <FiSearch className="text-base" />
           </button>
-          
-          {/* Notifications Dropdown */}
-          {showNotifications && (
-            <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-900/90 backdrop-blur-xl border border-blue-400/20 rounded-xl shadow-2xl shadow-blue-400/30 z-50 max-h-80 sm:max-h-96 overflow-y-auto notifications-dropdown">
-              <div className="p-3 sm:p-4 border-b border-blue-400/20">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-base sm:text-lg font-semibold text-white">Notifications</h3>
+
+          {/* Notifications */}
+          <div className="relative" ref={notifRef}>
+            <button
+              onClick={() => setNotifOpen((o) => !o)}
+              className="relative p-2 rounded-md text-[#8888AA] hover:text-[#F0F0FF] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
+              aria-label="Notifications"
+            >
+              <FiBell className="text-base" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#5B4FF5] animate-notif-pulse" />
+              )}
+            </button>
+
+            {notifOpen && (
+              <div className="absolute right-0 top-full mt-1 w-80 bg-[#111118] border border-[rgba(255,255,255,0.09)] rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] overflow-hidden animate-slide-down z-50">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-[rgba(255,255,255,0.07)]">
+                  <span className="text-sm font-semibold text-[#F0F0FF]">Notifications</span>
                   {notifications.length > 0 && (
                     <button
-                      onClick={clearAllNotifications}
-                      className="text-xs sm:text-sm text-blue-400 hover:text-blue-300 transition-colors px-2 py-1 rounded hover:bg-blue-400/10"
+                      onClick={clearAll}
+                      className="text-xs text-[#5B4FF5] hover:text-[#7B6FF8] transition-colors"
                     >
-                      Clear All
+                      Clear all
                     </button>
                   )}
                 </div>
-              </div>
-              
-              <div className="p-2">
-                {notifications.length === 0 ? (
-                  <div className="text-center py-6 sm:py-8">
-                    <FaBell className="text-3xl sm:text-4xl text-gray-500 mx-auto mb-2 sm:mb-3" />
-                    <p className="text-sm sm:text-base text-gray-400">No notifications yet</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2 max-h-56 sm:max-h-64 overflow-y-auto scrollbar-hide">
-                    {notifications.map((notification) => (
-                      <div
-                        key={notification.id}
-                        className={`p-2.5 sm:p-3 rounded-lg cursor-pointer transition-all duration-200 hover:scale-[1.02] ${
-                          notification.is_read 
-                            ? 'bg-white/5 hover:bg-white/10' 
-                            : 'bg-blue-500/20 border border-blue-500/30'
-                        }`}
-                        onClick={() => markAsRead(notification.id)}
-                      >
-                        <div className="flex items-start gap-2.5 sm:gap-3">
-                          <div className="flex-shrink-0">
-                            {notification.type === 'badge' && (
-                              <FaMedal className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400" />
-                            )}
-                            {notification.type === 'scenario' && (
-                              <BiBook className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400" />
-                            )}
-                            {notification.type === 'achievement' && (
-                              <FaMedal className="w-4 h-4 sm:w-5 sm:h-5 text-green-400" />
-                            )}
-                            {notification.type === 'system' && (
-                              <FaCog className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
-                            )}
-                          </div>
+                <div className="max-h-80 overflow-y-auto scrollbar-hide">
+                  {notifications.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-10 gap-2">
+                      <FiBell className="text-2xl text-[#4A4A6A]" />
+                      <p className="text-sm text-[#8888AA]">All caught up</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-[rgba(255,255,255,0.05)]">
+                      {notifications.map((n) => (
+                        <button
+                          key={n.id}
+                          onClick={() => markRead(n.id)}
+                          className={`w-full flex items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-[rgba(255,255,255,0.03)] ${
+                            !n.is_read ? "bg-[rgba(91,79,245,0.05)]" : ""
+                          }`}
+                        >
+                          <span className="mt-0.5 text-base shrink-0">
+                            {NotifIcon(n.type)}
+                          </span>
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs sm:text-sm font-medium text-white mb-1">
-                              {notification.title}
-                            </p>
-                            <p className="text-xs text-gray-300 mb-2">
-                              {notification.message}
-                            </p>
-                            <p className="text-xs text-gray-400">
-                              {new Date(notification.created_at).toLocaleDateString()}
+                            <p className="text-sm font-medium text-[#F0F0FF] leading-snug">{n.title}</p>
+                            <p className="text-xs text-[#8888AA] mt-0.5 line-clamp-2">{n.message}</p>
+                            <p className="text-xs text-[#4A4A6A] mt-1">
+                              {new Date(n.created_at).toLocaleDateString()}
                             </p>
                           </div>
-                          {!notification.is_read && (
-                            <div className="w-2 h-2 bg-blue-400 rounded-full flex-shrink-0"></div>
+                          {!n.is_read && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#5B4FF5] mt-1.5 shrink-0" />
                           )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-        <div
-          className="relative"
-          ref={dropdownRef}
-          onMouseEnter={!isTouch ? () => setDropdownOpen(true) : undefined}
-          onMouseLeave={!isTouch ? () => setDropdownOpen(false) : undefined}
-        >
-          <button
-            className="focus:outline-none"
-            onClick={isTouch ? () => setDropdownOpen((open) => !open) : undefined}
-          >
-            {profilePic ? (
-              <img
-                src={profilePic}
-                alt="Profile"
-                className="w-10 h-10 rounded-full border-2 border-blue-300 object-cover hover:border-blue-500"
-              />
-            ) : (
-              <FaUserCircle className="text-4xl text-blue-300 border-2 border-white rounded-full hover:border-blue-500" />
             )}
-          </button>
-          {dropdownOpen && (
-            <div className="absolute right-0 mt-1 w-48 bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-900/90 text-white rounded-lg shadow-lg z-50 py-2">
+          </div>
+
+          {/* User menu */}
+          <div className="relative ml-1" ref={userRef}>
+            <button
+              onClick={() => setUserOpen((o) => !o)}
+              className="flex items-center gap-2 p-1 rounded-lg hover:bg-[rgba(255,255,255,0.06)] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#5B4FF5]"
+              aria-label="User menu"
+            >
+              {profilePic ? (
+                <img
+                  src={profilePic}
+                  alt={user?.username}
+                  className="w-7 h-7 rounded-full object-cover border border-[rgba(255,255,255,0.12)]"
+                />
+              ) : (
+                <div className="w-7 h-7 rounded-full bg-[#5B4FF5]/20 border border-[rgba(91,79,245,0.3)] flex items-center justify-center text-[#7B6FF8] text-xs font-semibold">
+                  {user?.username?.[0]?.toUpperCase() || "U"}
+                </div>
+              )}
+              <FiChevronDown
+                className={`text-xs text-[#8888AA] transition-transform duration-150 ${userOpen ? "rotate-180" : ""}`}
+              />
+            </button>
+
+            {userOpen && (
+              <div className="absolute right-0 top-full mt-1 w-52 bg-[#111118] border border-[rgba(255,255,255,0.09)] rounded-lg shadow-[0_8px_32px_rgba(0,0,0,0.5)] py-1 animate-slide-down z-50">
+                <div className="px-3 py-2 border-b border-[rgba(255,255,255,0.07)] mb-1">
+                  <p className="text-sm font-semibold text-[#F0F0FF] truncate">{user?.username}</p>
+                  <p className="text-xs text-[#8888AA] truncate">{user?.email}</p>
+                </div>
+                {[
+                  { icon: FiUser,     label: "My Profile", href: `/profile/${user?.username}` },
+                  { icon: BiMedal,    label: "Badges",     href: "/badges" },
+                  { icon: FiSettings, label: "Settings",   href: "/settings" },
+                ].map(({ icon: Icon, label, href }) => (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={() => setUserOpen(false)}
+                    className="flex items-center gap-2.5 px-3 py-2 text-sm text-[#8888AA] hover:text-[#F0F0FF] hover:bg-[rgba(255,255,255,0.04)] transition-colors"
+                  >
+                    <Icon className="text-base shrink-0" />
+                    {label}
+                  </Link>
+                ))}
+                <button
+                  onClick={toggleTheme}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[#8888AA] hover:text-[#F0F0FF] hover:bg-[rgba(255,255,255,0.04)] transition-colors"
+                >
+                  {theme === "dark" ? (
+                    <><FiSun className="text-base shrink-0" /> Light mode</>
+                  ) : (
+                    <><FiMoon className="text-base shrink-0" /> Dark mode</>
+                  )}
+                </button>
+                <div className="my-1 h-px bg-[rgba(255,255,255,0.07)]" />
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[#EF4444] hover:bg-[rgba(239,68,68,0.06)] transition-colors"
+                >
+                  <FiLogOut className="text-base shrink-0" />
+                  Log out
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </nav>
+
+      {/* Mobile drawer */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-[60] bg-[rgba(0,0,0,0.6)] backdrop-blur-sm"
+          onClick={() => setMobileOpen(false)}
+        >
+          <div
+            className="absolute top-0 left-0 h-full w-72 bg-[#111118] border-r border-[rgba(255,255,255,0.07)] flex flex-col animate-slide-left"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="h-14 flex items-center justify-between px-4 border-b border-[rgba(255,255,255,0.07)]">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-md bg-[#5B4FF5] flex items-center justify-center">
+                  <FiShield className="text-white text-xs" />
+                </div>
+                <span className="text-[#F0F0FF] font-semibold text-sm">CyberCrux</span>
+              </div>
               <button
-                onClick={handleThemeToggle}
-                className="flex items-center w-full px-4 py-2 hover:bg-blue-400/10"
+                onClick={() => setMobileOpen(false)}
+                className="p-1.5 rounded-md text-[#8888AA] hover:text-[#F0F0FF] hover:bg-[rgba(255,255,255,0.06)] transition-colors"
               >
-                {theme === 'dark' ? <FaSun className="mr-2" /> : <FaMoon className="mr-2" />}
-                {theme === 'dark' ? "Light Theme" : "Dark Theme"}
+                <FiX />
               </button>
-              <Link href="/settings"
-                className="flex items-center px-4 py-2 hover:bg-green-400/10"
+            </div>
+
+            {/* User info */}
+            {user && (
+              <div className="flex items-center gap-3 px-4 py-3 border-b border-[rgba(255,255,255,0.07)]">
+                <div className="w-8 h-8 rounded-full bg-[rgba(91,79,245,0.2)] border border-[rgba(91,79,245,0.3)] flex items-center justify-center text-[#7B6FF8] text-sm font-semibold">
+                  {user?.username?.[0]?.toUpperCase() || "U"}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-[#F0F0FF] truncate">{user?.username}</p>
+                  <p className="text-xs text-[#8888AA] truncate">{user?.email}</p>
+                </div>
+              </div>
+            )}
+
+            <nav className="flex-1 px-3 py-3 overflow-y-auto space-y-0.5">
+              {mobileLinks.map(({ label, href, icon: Icon }, i) => (
+                <Link
+                  key={href}
+                  href={href}
+                  onClick={() => setMobileOpen(false)}
+                  style={{ animationDelay: `${i * 30}ms` }}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors animate-fade-in-up ${
+                    isActive(href)
+                      ? "text-[#F0F0FF] bg-[rgba(91,79,245,0.12)] border border-[rgba(91,79,245,0.2)]"
+                      : "text-[#8888AA] hover:text-[#F0F0FF] hover:bg-[rgba(255,255,255,0.04)]"
+                  }`}
+                >
+                  <Icon className="text-base shrink-0" />
+                  {label}
+                </Link>
+              ))}
+            </nav>
+
+            <div className="px-3 py-4 border-t border-[rgba(255,255,255,0.07)] space-y-1">
+              <button
+                onClick={() => { toggleTheme(); setMobileOpen(false); }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-[#8888AA] hover:text-[#F0F0FF] hover:bg-[rgba(255,255,255,0.04)] transition-colors"
               >
-                <FaCog className="mr-2" /> Settings
-              </Link>
-              <Link href={`/profile/${user?.username}`}
-                className="flex items-center px-4 py-2 hover:bg-blue-400/10"
-              >
-                <FaUserCircle className="mr-2" /> My Profile
-              </Link>
-              <Link href="/badges"
-                className="flex items-center px-4 py-2 hover:bg-purple-400/10"
-              >
-                <FaMedal className="mr-2" /> Badges
-              </Link>
+                {theme === "dark" ? <FiSun className="text-base" /> : <FiMoon className="text-base" />}
+                {theme === "dark" ? "Light mode" : "Dark mode"}
+              </button>
               <button
                 onClick={handleLogout}
-                className="flex items-center w-full px-4 py-2 hover:bg-pink-400/10"
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-[#EF4444] hover:bg-[rgba(239,68,68,0.06)] transition-colors"
               >
-                <FaSignOutAlt className="mr-2" /> Logout
+                <FiLogOut className="text-base" />
+                Log out
               </button>
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* Mobile Menu */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40" onClick={() => setMobileMenuOpen(false)}>
-          <div
-            className="absolute top-0 left-0 w-72 bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-900/90 backdrop-blur-2xl shadow-2xl shadow-blue-400/30 border-r border-blue-400/20 rounded-r-2xl py-8 px-6 flex flex-col gap-2 animate-fade-in"
-            onClick={e => e.stopPropagation()}
-          >
-            <button className="absolute top-4 right-4 text-3xl text-white hover:text-blue-400 focus:outline-none" onClick={() => setMobileMenuOpen(false)} aria-label="Close menu">
-              <BiX />
-            </button>
-            <div className="mt-8" />
-            <NavLink to="/practice" className={({ isActive }) => `flex items-center gap-3 text-white font-semibold py-2 px-2 rounded-lg hover:bg-purple-400/10 hover:text-purple-400 transition-all ${isActive ? 'underline text-purple-400 decoration-2 decoration-purple-400' : ''}` }><BiBook className="text-xl" />Practice</NavLink>
-            <NavLink to="/compete" className={({ isActive }) => `flex items-center gap-3 text-white font-semibold py-2 px-2 rounded-lg hover:bg-pink-400/10 hover:text-pink-400 transition-all ${isActive ? 'underline text-pink-400 decoration-2 decoration-pink-400' : ''}` }><BiGroup className="text-xl" />Compete</NavLink>
-            <NavLink to="/mock" className={({ isActive }) => `flex items-center gap-3 text-white font-semibold py-2 px-2 rounded-lg hover:bg-green-400/10 hover:text-green-400 transition-all ${isActive ? 'underline text-green-400 decoration-2 decoration-green-400' : ''}` }><BiSupport className="text-xl" />Mock</NavLink>
-            <NavLink to="/roadmap" className={({ isActive }) => `flex items-center gap-3 text-white font-semibold py-2 px-2 rounded-lg hover:bg-blue-400/10 hover:text-blue-400 transition-all ${isActive ? 'underline text-blue-400 decoration-2 decoration-blue-400' : ''}` }><BiMap className="text-xl" />Roadmaps</NavLink>
-            <NavLink to="/books" className={({ isActive }) => `flex items-center gap-3 text-white font-semibold py-2 px-2 rounded-lg hover:bg-green-400/10 hover:text-green-400 transition-all ${isActive ? 'underline text-green-400 decoration-2 decoration-green-400' : ''}` }><BiBook className="text-xl" />Books</NavLink>
-            <NavLink to="/tools" className={({ isActive }) => `flex items-center gap-3 text-white font-semibold py-2 px-2 rounded-lg hover:bg-purple-400/10 hover:text-purple-400 transition-all ${isActive ? 'underline text-purple-400 decoration-2 decoration-purple-400' : ''}` }><BiWrench className="text-xl" />Tools</NavLink>
-            <NavLink to="/labs" className={({ isActive }) => `flex items-center gap-3 text-white font-semibold py-2 px-2 rounded-lg hover:bg-pink-400/10 hover:text-pink-400 transition-all ${isActive ? 'underline text-pink-400 decoration-2 decoration-pink-400' : ''}` }><BiHomeAlt className="text-xl" />Home Labs</NavLink>
-            <NavLink to="/projects" className={({ isActive }) => `flex items-center gap-3 text-white font-semibold py-2 px-2 rounded-lg hover:bg-orange-400/10 hover:text-orange-400 transition-all ${isActive ? 'underline text-orange-400 decoration-2 decoration-orange-400' : ''}` } onClick={() => setMobileMenuOpen(false)}><BiCode className="text-xl" />Projects</NavLink>
-            <NavLink to="/badges" className={({ isActive }) => `flex items-center gap-3 text-white font-semibold py-2 px-2 rounded-lg hover:bg-yellow-400/10 hover:text-yellow-400 transition-all ${isActive ? 'underline text-yellow-400 decoration-2 decoration-yellow-400' : ''}` } onClick={() => setMobileMenuOpen(false)}><FaMedal className="text-xl" />Badges</NavLink>
-            <NavLink to={`/profile/${user?.username}`} className={({ isActive }) => `flex items-center gap-3 text-white font-semibold py-2 px-2 rounded-lg hover:bg-blue-400/10 hover:text-blue-400 transition-all ${isActive ? 'underline text-blue-400 decoration-2 decoration-blue-400' : ''}` } onClick={() => setMobileMenuOpen(false)}><FaUserCircle className="text-xl" />My Profile</NavLink>
-            <div className="border-t border-blue-200 my-2" />
-            <Link href="/login" className="w-full px-5 py-2 rounded-xl border border-blue-400 text-white font-semibold text-base shadow-sm hover:bg-blue-500/10 hover:text-blue-400 tracking-wide transition-all mb-2" onClick={() => setMobileMenuOpen(false)}>
-              Premium
-            </Link>
           </div>
         </div>
       )}
 
-      {/* Search Modal */}
-      <SearchModal 
-        isOpen={searchModalOpen} 
-        onClose={() => setSearchModalOpen(false)} 
-      />
-    </nav>
+      {/* Search modal */}
+      <SearchModal isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
+    </>
   );
 }

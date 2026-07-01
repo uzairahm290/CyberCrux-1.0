@@ -1,9 +1,18 @@
-import { Navigate } from 'react-router-dom';
+"use client";
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from "@/contexts/AuthContext";
 
 // For public routes (login, signup, landing) - redirect to dashboard if already logged in
 export const PublicRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && isAuthenticated) {
+      router.replace("/dashboard");
+    }
+  }, [loading, isAuthenticated, router]);
 
   if (loading) {
     return (
@@ -13,9 +22,7 @@ export const PublicRoute = ({ children }) => {
     );
   }
 
-  if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
-  }
+  if (isAuthenticated) return null;
 
   return children;
 };
@@ -23,6 +30,13 @@ export const PublicRoute = ({ children }) => {
 // For protected routes (dashboard, settings, etc.) - redirect to login if not authenticated
 export const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      router.replace("/login");
+    }
+  }, [loading, isAuthenticated, router]);
 
   if (loading) {
     return (
@@ -32,9 +46,7 @@ export const ProtectedRoute = ({ children }) => {
     );
   }
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
+  if (!isAuthenticated) return null;
 
   return children;
-}; 
+};

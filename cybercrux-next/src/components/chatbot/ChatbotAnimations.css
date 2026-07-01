@@ -45,10 +45,10 @@
 
 @keyframes glow-pulse {
   0%, 100% {
-    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+    box-shadow: 0 0 20px rgba(220, 38, 38, 0.3);
   }
   50% {
-    box-shadow: 0 0 30px rgba(59, 130, 246, 0.6);
+    box-shadow: 0 0 30px rgba(220, 38, 38, 0.6);
   }
 }
 
@@ -180,7 +180,7 @@
 
 /* Hover effects */
 .hover-glow:hover {
-  box-shadow: 0 0 25px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 0 25px rgba(220, 38, 38, 0.4);
   transition: box-shadow 0.3s ease;
 }
 
@@ -218,12 +218,12 @@
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: linear-gradient(45deg, #3b82f6, #8b5cf6);
+  background: linear-gradient(45deg, #dc2626, #991b1b);
   border-radius: 10px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(45deg, #2563eb, #7c3aed);
+  background: linear-gradient(45deg, #b91c1c, #7f1d1d);
 }
 
 /* Responsive enhancements */
